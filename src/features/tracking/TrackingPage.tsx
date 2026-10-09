@@ -10,7 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { JsonViewer } from "@/components/ui/json-viewer";
-import { Search, Package, Clock, AlertTriangle, MapPin, Truck, CheckCircle2, XCircle, ArrowRight, PackageCheck } from "lucide-react";
+import { Search, Package, Clock, AlertTriangle, MapPin, Truck, CheckCircle2, XCircle, ArrowRight, PackageCheck, Building2 } from "lucide-react";
+import { fetchClienteNome } from "@/lib/clienteCache";
+import { useQuery } from "@tanstack/react-query";
 
 function statusVariant(status: string) {
   const s = status?.toLowerCase() || "";
@@ -30,6 +32,11 @@ export function TrackingPage() {
 
   const formNf = useForm({ resolver: zodResolver(trackingByNfSchema), defaultValues: { cnpj: "", notaFiscal: "" } });
   const formPedido = useForm({ resolver: zodResolver(trackingByPedidoSchema), defaultValues: { cnpj: "", numPedido: "" } });
+
+  const cnpjNfWatch = formNf.watch("cnpj") || "";
+  const cnpjPedidoWatch = formPedido.watch("cnpj") || "";
+  const { data: nomeNf } = useQuery({ queryKey: ["cliente_cache", cnpjNfWatch], queryFn: () => fetchClienteNome(cnpjNfWatch), enabled: cnpjNfWatch.replace(/\D/g,"").length === 14, staleTime: 5*60*1000 });
+  const { data: nomePedido } = useQuery({ queryKey: ["cliente_cache", cnpjPedidoWatch], queryFn: () => fetchClienteNome(cnpjPedidoWatch), enabled: cnpjPedidoWatch.replace(/\D/g,"").length === 14, staleTime: 5*60*1000 });
 
   useEffect(() => {
     if (cred?.usuario) {
@@ -72,7 +79,11 @@ export function TrackingPage() {
             <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Tracking por Nota Fiscal</CardTitle><CardDescription>Busca por NF nos últimos 90 dias (grupo econômico v3)</CardDescription></CardHeader>
             <CardContent>
               <form onSubmit={formNf.handleSubmit((d) => onSearch("byNf", d.cnpj, d.notaFiscal))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                <div><Label>CNPJ Tomador *</Label><Input {...formNf.register("cnpj")} placeholder="12345678912345" />{formNf.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formNf.formState.errors.cnpj.message)}</p>}</div>
+                <div>
+                  <Label>CNPJ Tomador *</Label><Input {...formNf.register("cnpj")} placeholder="12345678912345" />
+                  {nomeNf && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeNf}</div>}
+                  {formNf.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formNf.formState.errors.cnpj.message)}</p>}
+                </div>
                 <div><Label>Nota Fiscal *</Label><Input {...formNf.register("notaFiscal")} placeholder="12345" />{formNf.formState.errors.notaFiscal && <p className="text-xs text-red-600">{String(formNf.formState.errors.notaFiscal.message)}</p>}</div>
                 <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
@@ -86,7 +97,11 @@ export function TrackingPage() {
             <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-primary" /> Tracking por Nº Pedido</CardTitle><CardDescription>Busca por número do pedido (v3)</CardDescription></CardHeader>
             <CardContent>
               <form onSubmit={formPedido.handleSubmit((d) => onSearch("byNumPedido", d.cnpj, d.numPedido))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                <div><Label>CNPJ Tomador *</Label><Input {...formPedido.register("cnpj")} placeholder="12345678912345" />{formPedido.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formPedido.formState.errors.cnpj.message)}</p>}</div>
+                <div>
+                  <Label>CNPJ Tomador *</Label><Input {...formPedido.register("cnpj")} placeholder="12345678912345" />
+                  {nomePedido && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomePedido}</div>}
+                  {formPedido.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formPedido.formState.errors.cnpj.message)}</p>}
+                </div>
                 <div><Label>Nº Pedido *</Label><Input {...formPedido.register("numPedido")} placeholder="PED123" />{formPedido.formState.errors.numPedido && <p className="text-xs text-red-600">{String(formPedido.formState.errors.numPedido.message)}</p>}</div>
                 <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>

@@ -11,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { JsonViewer, XmlViewer } from "@/components/ui/json-viewer";
-import { Plus, Trash2, Copy, Calculator, Truck, Hash, BadgeDollarSign, AlertTriangle, CheckCircle2, XCircle, MapPin, Loader2 } from "lucide-react";
+import { Plus, Trash2, Copy, Calculator, Truck, Hash, BadgeDollarSign, AlertTriangle, CheckCircle2, XCircle, MapPin, Loader2, Building2 } from "lucide-react";
 import { lookupCepByCNPJ } from "@/lib/cnpj";
+import { fetchClienteNome } from "@/lib/clienteCache";
+import { useQuery } from "@tanstack/react-query";
 
 export function CotacaoPage() {
   const { basic, cred } = useAuthStore();
@@ -120,6 +122,11 @@ export function CotacaoPage() {
   const cubagemValues = watch("cubagem") || [];
   const totalVolumes = cubagemValues.reduce((s: number, c: any) => s + (Number(c?.volumes) || 0), 0);
 
+  const cnpjRemetenteWatch = watch("cnpjRemetente") || "";
+  const cnpjDestinatarioWatch = watch("cnpjDestinatario") || "";
+  const { data: nomeRemetente } = useQuery({ queryKey: ["cliente_cache", cnpjRemetenteWatch], queryFn: () => fetchClienteNome(cnpjRemetenteWatch), enabled: cnpjRemetenteWatch.replace(/\D/g,"").length === 14, staleTime: 5*60*1000 });
+  const { data: nomeDestinatario } = useQuery({ queryKey: ["cliente_cache", cnpjDestinatarioWatch], queryFn: () => fetchClienteNome(cnpjDestinatarioWatch), enabled: cnpjDestinatarioWatch.replace(/\D/g,"").length === 14, staleTime: 5*60*1000 });
+
   // Sincroniza volumes = soma cubagem[].volumes (não editável manual)
   useEffect(() => {
     setValue("volumes", totalVolumes || 0, { shouldValidate: true, shouldDirty: true });
@@ -157,8 +164,16 @@ export function CotacaoPage() {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>CNPJ Remetente *</Label><Input {...register("cnpjRemetente")} placeholder="60701190000104" />{errors.cnpjRemetente && <p className="text-xs text-red-600">{String(errors.cnpjRemetente.message)}</p>}</div>
-              <div><Label>CNPJ Destinatário * <span className="text-muted-foreground font-normal">(CNPJ auto CEP, CPF manual)</span></Label><Input {...register("cnpjDestinatario")} placeholder="CPF ou CNPJ" />{errors.cnpjDestinatario && <p className="text-xs text-red-600">{String(errors.cnpjDestinatario.message)}</p>}</div>
+              <div>
+                <Label>CNPJ Remetente *</Label><Input {...register("cnpjRemetente")} placeholder="60701190000104" />
+                {nomeRemetente && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeRemetente}</div>}
+                {errors.cnpjRemetente && <p className="text-xs text-red-600">{String(errors.cnpjRemetente.message)}</p>}
+              </div>
+              <div>
+                <Label>CNPJ Destinatário * <span className="text-muted-foreground font-normal">(CNPJ auto CEP, CPF manual)</span></Label><Input {...register("cnpjDestinatario")} placeholder="CPF ou CNPJ" />
+                {nomeDestinatario && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeDestinatario}</div>}
+                {errors.cnpjDestinatario && <p className="text-xs text-red-600">{String(errors.cnpjDestinatario.message)}</p>}
+              </div>
             </div>
             {watch("tipoFrete") === "3" && <div><Label>CNPJ Consignado *</Label><Input {...register("cnpjConsignado")} />{errors.cnpjConsignado && <p className="text-xs text-red-600">{String(errors.cnpjConsignado.message)}</p>}</div>}
             <div className="grid grid-cols-2 gap-3">

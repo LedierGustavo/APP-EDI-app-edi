@@ -22,12 +22,19 @@ export async function lookupCepByCNPJ(cnpjRaw: string, signal?: AbortSignal): Pr
   if (typeof window !== "undefined" && (window as any).api?.lookupCnpj) {
     try {
       const res = await (window as any).api.lookupCnpj(cnpj);
+      if (res?.nome) {
+        try { const { upsertClienteCache } = await import("./clienteCache"); await upsertClienteCache(cnpj, res.nome); } catch {}
+      }
       if (res?.cep) {
         const cep = res.cep.replace(/\D/g, "");
         if (cep.length === 8) {
           cache.set(cnpj, { cep, ts: Date.now() });
           return cep;
         }
+      }
+      if (res?.cep !== undefined) {
+        // IPC retornou algo (mesmo que null), já tentou BrasilAPI+fallback no main, se cep null ainda tenta direto no renderer como fallback extra
+        if (res?.cep) return res.cep;
       }
     } catch {}
   }
@@ -37,6 +44,11 @@ export async function lookupCepByCNPJ(cnpjRaw: string, signal?: AbortSignal): Pr
     const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { signal });
     if (r.ok) {
       const j = await r.json();
+      // Upsert nome no cliente_cache (cache orgânico)
+      const nomeApi = j?.razao_social || j?.nome_fantasia;
+      if (nomeApi) {
+        try { const { upsertClienteCache } = await import("./clienteCache"); await upsertClienteCache(cnpj, nomeApi); } catch {}
+      }
       if (j?.cep) {
         const cep = String(j.cep).replace(/\D/g, "");
         if (cep.length === 8) {
@@ -60,6 +72,10 @@ export async function lookupCepByCNPJ(cnpjRaw: string, signal?: AbortSignal): Pr
     const r2 = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`, { signal, headers: { Accept: "application/json" } });
     if (r2.ok) {
       const j2 = await r2.json();
+      const nome2 = j2?.razao_social || j2?.razaoSocial || j2?.estabelecimento?.nome_fantasia;
+      if (nome2) {
+        try { const { upsertClienteCache } = await import("./clienteCache"); await upsertClienteCache(cnpj, nome2); } catch {}
+      }
       const cepRaw = j2?.estabelecimento?.cep || j2?.cep || j2?.endereco?.cep;
       if (cepRaw) {
         const cep = String(cepRaw).replace(/\D/g, "");

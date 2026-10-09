@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
   resolveSenha: (senhaBruta: string) => ipcRenderer.invoke("resolve-senha", senhaBruta),
+  encryptSenha: (senhaBruta: string) => ipcRenderer.invoke("encrypt-senha", senhaBruta),
   callCotacao: (args: any) => ipcRenderer.invoke("call-cotacao", args),
   callTracking: (args: any) => ipcRenderer.invoke("call-tracking", args),
   lookupCnpj: (cnpj: string) => ipcRenderer.invoke("lookup-cnpj", cnpj),
@@ -15,6 +16,7 @@ declare global {
   interface Window {
     api: {
       resolveSenha: (s: string) => Promise<string>;
+      encryptSenha: (s: string) => Promise<string>;
       callCotacao: (args: any) => Promise<{ status: number; ok: boolean; data: any }>;
       callTracking: (args: any) => Promise<{ status: number; ok: boolean; data: any }>;
       lookupCnpj: (cnpj: string) => Promise<{ cep: string | null; source?: string }>;

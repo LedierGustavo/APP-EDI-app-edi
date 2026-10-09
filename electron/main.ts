@@ -119,6 +119,28 @@ ipcMain.handle("restart-to-update", () => {
   autoUpdater.quitAndInstall();
 });
 
+// IPC: encrypt senha (Fernet) - usado no Dialog Nova Credencial antes do INSERT
+ipcMain.handle("encrypt-senha", async (_e, senhaBruta: string) => {
+  if (!senhaBruta) return "";
+  try {
+    const fernetKey = deriveFernetKey(SECRET_KEY_RAW);
+    const secretObj = new (Fernet as any).Secret(fernetKey);
+    const token = new (Fernet as any).Token({ secret: secretObj, time: Date.now(), ttl: 0 });
+    // Fernet Token encode precisa de Uint8Array ou string
+    const encrypted = token.encode(senhaBruta);
+    return encrypted;
+  } catch {
+    try {
+      const fernetKeyUrl = crypto.createHash("sha256").update(SECRET_KEY_RAW, "utf8").digest().toString("base64url");
+      const secretObj2 = new (Fernet as any).Secret(fernetKeyUrl);
+      const token2 = new (Fernet as any).Token({ secret: secretObj2, time: Date.now(), ttl: 0 });
+      return token2.encode(senhaBruta);
+    } catch {
+      return "";
+    }
+  }
+});
+
 // IPC: resolve senha (heurística: Fernet -> AES-GCM -> plain)
 ipcMain.handle("resolve-senha", async (_e, senhaBruta: string) => {
   if (!senhaBruta) return "";
@@ -141,12 +163,14 @@ ipcMain.handle("resolve-senha", async (_e, senhaBruta: string) => {
 // IPC: lookup CNPJ -> CEP (BrasilAPI + fallback publica.cnpj.ws) - evita CORS/firewall no renderer
 ipcMain.handle("lookup-cnpj", async (_e, cnpj: string) => {
   const digits = cnpj.replace(/\D/g, "").padStart(14, "0").slice(-14);
-  if (digits.length !== 14) return { cep: null };
+  if (digits.length !== 14) return { cep: null, nome: null };
   try {
     const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
     if (r.ok) {
       const j: any = await r.json();
-      if (j?.cep) return { cep: String(j.cep).replace(/\D/g, ""), source: "brasilapi" };
+      const cep = j?.cep ? String(j.cep).replace(/\D/g, "") : null;
+      const nome = j?.razao_social || j?.nome_fantasia || null;
+      if (cep || nome) return { cep, nome, source: "brasilapi" };
     }
   } catch {}
   try {
@@ -154,10 +178,12 @@ ipcMain.handle("lookup-cnpj", async (_e, cnpj: string) => {
     if (r2.ok) {
       const j2: any = await r2.json();
       const cepRaw = j2?.estabelecimento?.cep || j2?.cep;
-      if (cepRaw) return { cep: String(cepRaw).replace(/\D/g, ""), source: "cnpj.ws" };
+      const cep = cepRaw ? String(cepRaw).replace(/\D/g, "") : null;
+      const nome = j2?.razao_social || j2?.razaoSocial || j2?.estabelecimento?.nome_fantasia || null;
+      if (cep || nome) return { cep, nome, source: "cnpj.ws" };
     }
   } catch {}
-  return { cep: null };
+  return { cep: null, nome: null };
 });
 
 // IPC: proxy Braspress - Cotação (com parser XML -> JSON normalizado para cards)

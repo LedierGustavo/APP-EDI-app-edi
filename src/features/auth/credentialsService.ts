@@ -67,9 +67,22 @@ async function decryptFernetWeb(token: string, secret: string): Promise<string |
 }
 
 export async function fetchCredenciais({ search, page, pageSize }: { search?: string; page: number; pageSize: number }): Promise<{ data: Credencial[]; count: number | null }> {
-  let query = supabase.from("credenciais").select("id, usuario, senha, criado_em", { count: "exact" }).order("usuario", { ascending: true }).range(page * pageSize, (page + 1) * pageSize - 1);
-  if (search) query = query.ilike("usuario", `%${search}%`);
-  const { data, error, count } = await query;
+  if (!search) {
+    const { data, error, count } = await supabase.from("credenciais").select("id, usuario, senha, criado_em", { count: "exact" }).order("usuario", { ascending: true }).range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) throw error;
+    return { data: (data as Credencial[]) ?? [], count };
+  }
+  // Busca por nome_cliente em cliente_cache
+  const { data: clientes } = await supabase.from("cliente_cache").select("cnpj").ilike("nome_cliente", `%${search}%`).limit(50);
+  const cnpjs = (clientes as any[] | null)?.map((r) => r.cnpj) ?? [];
+  // Monta filtro OR: usuario ilike search OR usuario ilike cnpj%
+  const orFilters = [`usuario.ilike.%${search}%`, ...cnpjs.map((c) => `usuario.ilike.${c}%`)].join(",");
+  const { data, error, count } = await supabase
+    .from("credenciais")
+    .select("id, usuario, senha, criado_em", { count: "exact" })
+    .or(orFilters)
+    .order("usuario", { ascending: true })
+    .range(page * pageSize, (page + 1) * pageSize - 1);
   if (error) throw error;
   return { data: (data as Credencial[]) ?? [], count };
 }
