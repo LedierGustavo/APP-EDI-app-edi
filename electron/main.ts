@@ -138,7 +138,29 @@ ipcMain.handle("resolve-senha", async (_e, senhaBruta: string) => {
   return trimmed;
 });
 
-// IPC: proxy Braspress - Cotação
+// IPC: lookup CNPJ -> CEP (BrasilAPI + fallback publica.cnpj.ws) - evita CORS/firewall no renderer
+ipcMain.handle("lookup-cnpj", async (_e, cnpj: string) => {
+  const digits = cnpj.replace(/\D/g, "").padStart(14, "0").slice(-14);
+  if (digits.length !== 14) return { cep: null };
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+    if (r.ok) {
+      const j: any = await r.json();
+      if (j?.cep) return { cep: String(j.cep).replace(/\D/g, ""), source: "brasilapi" };
+    }
+  } catch {}
+  try {
+    const r2 = await fetch(`https://publica.cnpj.ws/cnpj/${digits}`, { headers: { Accept: "application/json" } });
+    if (r2.ok) {
+      const j2: any = await r2.json();
+      const cepRaw = j2?.estabelecimento?.cep || j2?.cep;
+      if (cepRaw) return { cep: String(cepRaw).replace(/\D/g, ""), source: "cnpj.ws" };
+    }
+  } catch {}
+  return { cep: null };
+});
+
+// IPC: proxy Braspress - Cotação (com parser XML -> JSON normalizado para cards)
 ipcMain.handle("call-cotacao", async (_e, { basic, payload, returnType }: { basic: string; payload: any; returnType: string }) => {
   const url = `https://api.braspress.com/v1/cotacao/calcular/${returnType || "json"}`;
   const res = await fetch(url, {
@@ -148,8 +170,31 @@ ipcMain.handle("call-cotacao", async (_e, { basic, payload, returnType }: { basi
   });
   const text = await res.text();
   let data: any;
-  try { data = JSON.parse(text); } catch { data = text; }
-  return { status: res.status, ok: res.ok, data, headers: Object.fromEntries(res.headers.entries()) };
+  let parsed: any = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    // XML: tenta normalizar para objeto {id, prazo, totalFrete} para reusar cards
+    if (returnType === "xml" && text.trim().startsWith("<")) {
+      try {
+        const { XMLParser } = await import("fast-xml-parser");
+        const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
+        parsed = parser.parse(text);
+        // Braspress XML costuma ser <cotacao><id>..</id><prazo>..</prazo><totalFrete>..</totalFrete></cotacao> ou similar
+        const flat = parsed?.cotacao || parsed?.Cotacao || parsed?.response || parsed;
+        if (flat && (flat.id || flat.prazo || flat.totalFrete)) {
+          data = { id: String(flat.id ?? ""), prazo: Number(flat.prazo ?? 0), totalFrete: Number(flat.totalFrete ?? flat.valor ?? 0), _rawXml: text, _parsed: flat };
+        } else {
+          data = text;
+        }
+      } catch {
+        data = text;
+      }
+    } else {
+      data = text;
+    }
+  }
+  return { status: res.status, ok: res.ok, data, raw: text, parsed, headers: Object.fromEntries(res.headers.entries()) };
 });
 
 // IPC: proxy Braspress - Tracking v3

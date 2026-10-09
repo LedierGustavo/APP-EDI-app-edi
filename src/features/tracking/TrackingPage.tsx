@@ -6,10 +6,20 @@ import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, Package, Clock, AlertTriangle } from "lucide-react";
+import { JsonViewer } from "@/components/ui/json-viewer";
+import { Search, Package, Clock, AlertTriangle, MapPin, Truck, CheckCircle2, XCircle, ArrowRight, PackageCheck } from "lucide-react";
+
+function statusVariant(status: string) {
+  const s = status?.toLowerCase() || "";
+  if (s.includes("entreg")) return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200";
+  if (s.includes("transito") || s.includes("trânsito") || s.includes("em trans")) return "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200";
+  if (s.includes("colet")) return "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200";
+  if (s.includes("extrav") || s.includes("ocorr")) return "bg-red-500/10 text-red-700 dark:text-red-300 border-red-200";
+  return "bg-primary/10 text-primary border-primary/20";
+}
 
 export function TrackingPage() {
   const { basic, cred } = useAuthStore();
@@ -21,7 +31,6 @@ export function TrackingPage() {
   const formNf = useForm({ resolver: zodResolver(trackingByNfSchema), defaultValues: { cnpj: "", notaFiscal: "" } });
   const formPedido = useForm({ resolver: zodResolver(trackingByPedidoSchema), defaultValues: { cnpj: "", numPedido: "" } });
 
-  // Auto-preenche CNPJ Tomador com o usuário selecionado
   useEffect(() => {
     if (cred?.usuario) {
       const cnpj = cred.usuario.split("_")[0].replace(/\D/g, "");
@@ -37,7 +46,14 @@ export function TrackingPage() {
     setLoading(true);
     const cnpjDigits = cnpj.replace(/\D/g, "");
     try {
-      const res = (window as any).api ? await (window as any).api.callTracking({ basic, cnpj: cnpjDigits, valor, tipo, returnType }) : await fetch(`https://api.braspress.com/v3/tracking/${tipo}/${cnpjDigits}/${valor}/${returnType}`, { headers: { Authorization: `Basic ${basic}` } }).then(async (r) => ({ status: r.status, ok: r.ok, data: await r.json().catch(() => r.text()) }));
+      const res = (window as any).api
+        ? await (window as any).api.callTracking({ basic, cnpj: cnpjDigits, valor, tipo, returnType })
+        : await fetch(`https://api.braspress.com/v3/tracking/${tipo}/${cnpjDigits}/${valor}/${returnType}`, { headers: { Authorization: `Basic ${basic}` } }).then(async (r) => {
+            const text = await r.text();
+            let data: any;
+            try { data = JSON.parse(text); } catch { data = text; }
+            return { status: r.status, ok: r.ok, data, raw: text };
+          });
       setResult(res);
     } catch (e: any) { setResult({ status: 0, ok: false, data: { message: e.message } }); }
     setLoading(false);
@@ -53,21 +69,21 @@ export function TrackingPage() {
 
         <TabsContent value="byNf">
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Tracking por Nota Fiscal</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Tracking por Nota Fiscal</CardTitle><CardDescription>Busca por NF nos últimos 90 dias (grupo econômico v3)</CardDescription></CardHeader>
             <CardContent>
               <form onSubmit={formNf.handleSubmit((d) => onSearch("byNf", d.cnpj, d.notaFiscal))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div><Label>CNPJ Tomador *</Label><Input {...formNf.register("cnpj")} placeholder="12345678912345" />{formNf.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formNf.formState.errors.cnpj.message)}</p>}</div>
                 <div><Label>Nota Fiscal *</Label><Input {...formNf.register("notaFiscal")} placeholder="12345" />{formNf.formState.errors.notaFiscal && <p className="text-xs text-red-600">{String(formNf.formState.errors.notaFiscal.message)}</p>}</div>
                 <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
-              <p className="text-xs text-muted-foreground mt-2">GET /v3/tracking/byNf/{"{cnpj}"}/{"{notaFiscal}"}/json • últimos 90 dias</p>
+              <p className="text-xs text-muted-foreground mt-2">GET /v3/tracking/byNf/{"{cnpj}"}/{"{notaFiscal}"}/json</p>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="byNumPedido">
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-5 w-5" /> Tracking por Nº Pedido</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-primary" /> Tracking por Nº Pedido</CardTitle><CardDescription>Busca por número do pedido (v3)</CardDescription></CardHeader>
             <CardContent>
               <form onSubmit={formPedido.handleSubmit((d) => onSearch("byNumPedido", d.cnpj, d.numPedido))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div><Label>CNPJ Tomador *</Label><Input {...formPedido.register("cnpj")} placeholder="12345678912345" />{formPedido.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formPedido.formState.errors.cnpj.message)}</p>}</div>
@@ -81,57 +97,92 @@ export function TrackingPage() {
       </Tabs>
 
       {result && (
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2">Resultado <Badge className={result.ok ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>{result.status}</Badge></CardTitle></CardHeader>
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              {result.ok ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
+              Resultado
+              <Badge className={result.ok ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200" : "bg-red-500/10 text-red-700 dark:text-red-300 border-red-200"}>{result.status}</Badge>
+              {result.ok && Array.isArray(result.data?.conhecimentos) && <span className="text-xs font-normal text-muted-foreground">{result.data.conhecimentos.length} conhecimento(s)</span>}
+            </CardTitle>
+            {!result.ok && result.data?.message && <CardDescription className="text-red-600 dark:text-red-400">{result.data.message}</CardDescription>}
+          </CardHeader>
           <CardContent className="space-y-4">
-            {!result.ok && <pre className="text-xs bg-red-50 border border-red-200 p-3 rounded overflow-auto">{typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2)}</pre>}
-
-            {result.ok && Array.isArray(result.data?.conhecimentos) && (
-              <div className="space-y-4">
-                {result.data.conhecimentos.map((c: any, idx: number) => (
-                  <div key={idx} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex flex-wrap gap-2 items-center justify-between">
-                      <span className="font-mono font-bold">AWB {c.numero}</span>
-                      <Badge>{c.status}</Badge>
-                      <span className="text-xs text-muted-foreground">{c.origem} → {c.cidade}/{c.uf}</span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                      <div><span className="text-muted-foreground">Remetente:</span> {c.remetente}</div>
-                      <div><span className="text-muted-foreground">Destinatário:</span> {c.destinatario}</div>
-                      <div><span className="text-muted-foreground">Volumes:</span> {c.volumes} • {c.peso}kg</div>
-                      <div><span className="text-muted-foreground">Frete:</span> R$ {c.totalFrete}</div>
-                      <div><span className="text-muted-foreground">Previsão:</span> {c.previsaoEntrega}</div>
-                      <div><span className="text-muted-foreground">Entrega:</span> {c.dataEntrega || "-"}</div>
-                      <div><span className="text-muted-foreground">Última:</span> {c.ultimaOcorrencia}</div>
-                      <div><span className="text-muted-foreground">Data:</span> {c.dataOcorrencia}</div>
-                    </div>
-
-                    {c.timeline && c.timeline.length > 0 && (
-                      <div>
-                        <div className="font-medium text-sm flex items-center gap-2"><Clock className="h-4 w-4" /> Timeline</div>
-                        <div className="mt-2 space-y-1 border-l-2 border-primary/20 pl-4">
-                          {c.timeline.map((t: any, i: number) => (
-                            <div key={i} className="text-xs"><span className="font-medium">{t.descricao}</span> <span className="text-muted-foreground">— {t.data}</span></div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {c.ocorrencias && c.ocorrencias.length > 0 && (
-                      <div className="p-2 bg-amber-50 border border-amber-200 rounded">
-                        <div className="text-sm font-medium flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-600" /> Ocorrências</div>
-                        {c.ocorrencias.map((o: any, i: number) => <div key={i} className="text-xs mt-1">{o.descricao} — {o.data}</div>)}
-                      </div>
-                    )}
-
-                    {c.notasFiscais && <div className="text-xs"><span className="font-medium">Notas:</span> {c.notasFiscais.map((n: any) => `${n.serie}-${n.numero}`).join(", ")}</div>}
-                  </div>
-                ))}
-                {result.data.conhecimentos.length === 0 && <div className="text-sm text-muted-foreground text-center py-4">Nenhum conhecimento encontrado (verifique período 90 dias)</div>}
-              </div>
+            {!result.ok && (
+              <JsonViewer data={result.data} title="Erro" />
             )}
 
-            {result.ok && !result.data?.conhecimentos && <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-[500px]">{typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2)}</pre>}
+            {result.ok && Array.isArray(result.data?.conhecimentos) && (
+              <Tabs defaultValue="visual">
+                <TabsList>
+                  <TabsTrigger value="visual">Visual</TabsTrigger>
+                  <TabsTrigger value="json">JSON</TabsTrigger>
+                </TabsList>
+                <TabsContent value="visual" className="space-y-4 mt-4">
+                  {result.data.conhecimentos.map((c: any, idx: number) => (
+                    <div key={idx} className="border rounded-xl overflow-hidden shadow-sm bg-card">
+                      <div className="px-4 py-3 bg-muted/20 border-b flex flex-wrap gap-2 items-center justify-between">
+                        <span className="font-mono font-bold flex items-center gap-2"><Truck className="h-4 w-4 text-primary" />AWB {c.numero}</span>
+                        <Badge className={statusVariant(c.status)}>{c.status}</Badge>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{c.origem} <ArrowRight className="h-3 w-3" /> {c.cidade}/{c.uf}</span>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Remetente</div><div className="text-xs font-medium truncate">{c.remetente}</div></div>
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Destinatário</div><div className="text-xs font-medium truncate">{c.destinatario}</div></div>
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground flex items-center gap-1"><Package className="h-3 w-3" />Volumes / Peso</div><div className="text-xs font-medium">{c.volumes} • {c.peso}kg</div></div>
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Frete</div><div className="text-xs font-bold">R$ {c.totalFrete}</div></div>
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Previsão</div><div className="text-xs">{c.previsaoEntrega}</div></div>
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Entrega</div><div className="text-xs">{c.dataEntrega || "-"}</div></div>
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Última ocorrência</div><div className="text-xs truncate">{c.ultimaOcorrencia}</div></div>
+                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Data</div><div className="text-xs">{c.dataOcorrencia}</div></div>
+                        </div>
+
+                        {c.timeline && c.timeline.length > 0 && (
+                          <div className="rounded-lg border bg-card p-3">
+                            <div className="font-medium text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Timeline</div>
+                            <div className="mt-3 relative pl-6 space-y-3">
+                              <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-primary/10 rounded" />
+                              {c.timeline.map((t: any, i: number) => (
+                                <div key={i} className="relative flex gap-3">
+                                  <div className={`absolute -left-5 top-1 w-2.5 h-2.5 rounded-full ring-4 ${i === 0 ? "bg-primary ring-primary/20" : "bg-muted-foreground/40 ring-muted/20"}`} />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-medium">{t.descricao}</div>
+                                    <div className="text-xs text-muted-foreground">{t.data}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {c.ocorrencias && c.ocorrencias.length > 0 && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-500/10 dark:bg-amber-950/20 p-3">
+                            <div className="text-sm font-medium flex items-center gap-2 text-amber-700 dark:text-amber-300"><AlertTriangle className="h-4 w-4" /> Ocorrências</div>
+                            <div className="mt-2 space-y-1">
+                              {c.ocorrencias.map((o: any, i: number) => <div key={i} className="text-xs"><span className="font-medium">{o.descricao}</span> <span className="text-muted-foreground">— {o.data}</span></div>)}
+                            </div>
+                          </div>
+                        )}
+
+                        {c.notasFiscais?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="text-xs text-muted-foreground mr-1 flex items-center gap-1"><PackageCheck className="h-3 w-3" />Notas:</span>
+                            {c.notasFiscais.map((n: any, i: number) => <Badge key={i} className="font-mono text-xs border">{n.serie}-{n.numero}</Badge>)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {result.data.conhecimentos.length === 0 && <div className="text-sm text-muted-foreground text-center py-8 border rounded-xl bg-muted/20 flex flex-col items-center gap-2"><Package className="h-8 w-8 opacity-40" />Nenhum conhecimento encontrado (verifique período 90 dias)</div>}
+                </TabsContent>
+                <TabsContent value="json" className="mt-4">
+                  <JsonViewer data={result.data} title="Response JSON" />
+                </TabsContent>
+              </Tabs>
+            )}
+
+            {result.ok && !result.data?.conhecimentos && <JsonViewer data={result.data} title="Resposta" />}
           </CardContent>
         </Card>
       )}

@@ -1,12 +1,15 @@
 {
   "name": "app-edi",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "description": "APP EDI - Teste de API Braspress",
   "author": "APP EDI",
-  "repository": { "type": "git", "url": "https://github.com/LedierGustavo/APP-EDI-app-edi.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LedierGustavo/APP-EDI-app-edi.git"
+  },
   "scripts": {
     "dev": "vite",
     "dev:electron": "npm run build:electron && electron .",
@@ -22,11 +25,38 @@
   "build": {
     "appId": "com.appedi.desktop",
     "productName": "APP EDI",
-    "directories": { "output": "C:/Users/ledie/AppData/Local/Temp/opencode/app-edi-release" },
-    "files": ["dist/**", "dist-electron/**", "package.json"],
-    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "signAndEditExecutable": false },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true },
-    "publish": { "provider": "github", "owner": "LedierGustavo", "repo": "APP-EDI-app-edi", "private": true, "releaseType": "release" }
+    "directories": {
+      "output": "C:/Users/ledie/AppData/Local/Temp/opencode/app-edi-release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "LedierGustavo",
+      "repo": "APP-EDI-app-edi",
+      "private": true,
+      "releaseType": "release"
+    }
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -35,6 +65,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.9",
+    "fast-xml-parser": "^5.11.2",
     "fernet": "^0.3.3",
     "lucide-react": "^1.54.0",
     "react": "^19.2.8",
