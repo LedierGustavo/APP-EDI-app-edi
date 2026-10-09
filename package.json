@@ -54,7 +54,7 @@
       "provider": "github",
       "owner": "LedierGustavo",
       "repo": "APP-EDI-app-edi",
-      "private": true,
+      "private": false,
       "releaseType": "release"
     }
   },
