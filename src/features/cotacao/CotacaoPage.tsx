@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cotacaoSchema } from "@/lib/validators";
@@ -46,8 +46,8 @@ export function CotacaoPage() {
 
   // Auto CEP via CNPJ - BrasilAPI + fallback publica.cnpj.ws, com debounce, normalização e toast
   const [cepLoading, setCepLoading] = useState<"origem" | "destino" | null>(null);
-  const cepTimers = { origem: null as any, destino: null as any };
-  const cepAbort = { origem: null as any, destino: null as any };
+  const cepTimers = useRef<{ origem: any; destino: any }>({ origem: null, destino: null });
+  const cepAbort = useRef<{ origem: AbortController | null; destino: AbortController | null }>({ origem: null, destino: null });
 
   useEffect(() => {
     const sub = watch((values, { name }) => {
@@ -55,17 +55,21 @@ export function CotacaoPage() {
         const raw = String(values.cnpjRemetente || "");
         const digits = raw.replace(/\D/g, "");
         if (digits.length === 14) {
-          if (cepTimers.origem) clearTimeout(cepTimers.origem);
-          if (cepAbort.origem) cepAbort.origem.abort();
+          if (cepTimers.current.origem) clearTimeout(cepTimers.current.origem);
+          if (cepAbort.current.origem) cepAbort.current.origem.abort();
           const ctrl = new AbortController();
-          cepAbort.origem = ctrl;
+          cepAbort.current.origem = ctrl;
           setCepLoading("origem");
-          cepTimers.origem = setTimeout(async () => {
-            const cep = await lookupCepByCNPJ(digits, ctrl.signal).catch(() => null);
-            if (cep) {
-              setValue("cepOrigem", cep, { shouldValidate: true, shouldDirty: true });
-            } else {
-              console.warn(`[CEP] não encontrado para CNPJ ${digits}`);
+          cepTimers.current.origem = setTimeout(async () => {
+            try {
+              const cep = await lookupCepByCNPJ(digits, ctrl.signal);
+              if (cep) {
+                setValue("cepOrigem", cep, { shouldValidate: true, shouldDirty: true });
+              } else {
+                console.warn(`[CEP] não encontrado para CNPJ ${digits}`);
+              }
+            } catch (e: any) {
+              if (e?.name !== "AbortError") console.warn(`[CEP] erro CNPJ ${digits}:`, e?.message);
             }
             setCepLoading(null);
           }, 500);
@@ -74,14 +78,16 @@ export function CotacaoPage() {
       if (name === "cnpjDestinatario") {
         const c = String(values.cnpjDestinatario || "").replace(/\D/g, "");
         if (c.length === 14) {
-          if (cepTimers.destino) clearTimeout(cepTimers.destino);
-          if (cepAbort.destino) cepAbort.destino.abort();
+          if (cepTimers.current.destino) clearTimeout(cepTimers.current.destino);
+          if (cepAbort.current.destino) cepAbort.current.destino.abort();
           const ctrl = new AbortController();
-          cepAbort.destino = ctrl;
+          cepAbort.current.destino = ctrl;
           setCepLoading("destino");
-          cepTimers.destino = setTimeout(async () => {
-            const cep = await lookupCepByCNPJ(c, ctrl.signal).catch(() => null);
-            if (cep) setValue("cepDestino", cep, { shouldValidate: true, shouldDirty: true });
+          cepTimers.current.destino = setTimeout(async () => {
+            try {
+              const cep = await lookupCepByCNPJ(c, ctrl.signal);
+              if (cep) setValue("cepDestino", cep, { shouldValidate: true, shouldDirty: true });
+            } catch {}
             setCepLoading(null);
           }, 500);
         } else if (c.length === 11) {
@@ -91,8 +97,8 @@ export function CotacaoPage() {
     });
     return () => {
       sub.unsubscribe();
-      if (cepTimers.origem) clearTimeout(cepTimers.origem);
-      if (cepTimers.destino) clearTimeout(cepTimers.destino);
+      if (cepTimers.current.origem) clearTimeout(cepTimers.current.origem);
+      if (cepTimers.current.destino) clearTimeout(cepTimers.current.destino);
     };
   }, [watch, setValue]);
 
