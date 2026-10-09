@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Search, RefreshCw, Shield, User, Eye, EyeOff, Copy, Check, Building2 } from "lucide-react";
+import { Search, RefreshCw, Shield, User, Eye, EyeOff, Copy, Check, Building2, Download } from "lucide-react";
 import { fetchClientesBatch, fetchClienteNome } from "@/lib/clienteCache";
 import { CreateCredentialDialog } from "./CreateCredentialDialog";
+import { lookupCepByCNPJ } from "@/lib/cnpj";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function CredentialSelector() {
   const [search, setSearch] = useState("");
@@ -19,6 +21,8 @@ export function CredentialSelector() {
   const [selectedRaw, setSelectedRaw] = useState<{ usuario: string; senha: string } | null>(null);
   const [showSenha, setShowSenha] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [fetchingCnpj, setFetchingCnpj] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const selectedCnpj = cred?.usuario ? cred.usuario.split("_")[0].replace(/\D/g, "").padStart(14, "0") : "";
   const { data: selectedNome } = useQuery({
@@ -57,6 +61,18 @@ export function CredentialSelector() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleFetchNome = async (e: React.MouseEvent, cnpj: string) => {
+    e.stopPropagation();
+    setFetchingCnpj(cnpj);
+    try {
+      // lookupCepByCNPJ já faz upsert do nome via BrasilAPI/cnpj.ws
+      await lookupCepByCNPJ(cnpj);
+      // Invalida cache para recarregar nome
+      await queryClient.invalidateQueries({ queryKey: ["cliente_cache"] });
+    } catch {}
+    setFetchingCnpj(null);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -89,9 +105,24 @@ export function CredentialSelector() {
                   <span className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-muted-foreground" />{c.usuario}</span>
                   <span className="text-xs text-muted-foreground">{c.criado_em ? new Date(c.criado_em).toLocaleDateString() : ""}</span>
                 </span>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-                  <Building2 className="h-3 w-3 shrink-0" />
-                  {nome ? <span className="text-primary font-medium truncate">{nome}</span> : <span className="italic">sem nome no cache</span>}
+                <span className="flex items-center gap-1.5 text-xs truncate">
+                  <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  {nome ? (
+                    <span className="text-primary font-medium truncate">{nome}</span>
+                  ) : (
+                    <button
+                      onClick={(e) => handleFetchNome(e, cnpj)}
+                      disabled={fetchingCnpj === cnpj}
+                      className="italic text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
+                      title="Clique para buscar nome via BrasilAPI"
+                    >
+                      {fetchingCnpj === cnpj ? (
+                        <><span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" /> buscando...</>
+                      ) : (
+                        <><Download className="h-3 w-3" /> sem nome no cache — clique para buscar</>
+                      )}
+                    </button>
+                  )}
                 </span>
               </button>
             );

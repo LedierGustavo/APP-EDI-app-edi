@@ -234,3 +234,69 @@ ipcMain.handle("call-tracking", async (_e, { basic, cnpj, valor, tipo, returnTyp
   try { data = JSON.parse(text); } catch { data = text; }
   return { status: res.status, ok: res.ok, data };
 });
+
+// IPC: proxy Braspress SOAP - consultaLoteMultiplasOcorrenciasBraspress
+ipcMain.handle("call-tracking-soap", async (_e, payload: { cnpjCliente: string; token: string; tipoCliente: string; numeroNotaFiscal: string; serieNotaFiscal: string; numeroCTe: string; cnpjDestinatario: string; atributo01: string; atributo02: string; atributo03: string; atributo04: string; atributo05: string }) => {
+  const soapEnvelope = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:con="http://xmlns.oracle.com/Braspress_Datapress/consultaLoteMultiplasOcorrenciasBraspress/consultaLoteMultiplasOcorrenciasBraspress">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <con:process>
+      <con:cnpjCliente>${payload.cnpjCliente || ""}</con:cnpjCliente>
+      <con:token>${payload.token || ""}</con:token>
+      <con:tipoCliente>${payload.tipoCliente || "1"}</con:tipoCliente>
+      <con:numeroNotaFiscal>${payload.numeroNotaFiscal || ""}</con:numeroNotaFiscal>
+      <con:serieNotaFiscal>${payload.serieNotaFiscal || "1"}</con:serieNotaFiscal>
+      <con:numeroCTe>${payload.numeroCTe || ""}</con:numeroCTe>
+      <con:cnpjDestinatario>${payload.cnpjDestinatario || ""}</con:cnpjDestinatario>
+      <con:atributo01>${payload.atributo01 || ""}</con:atributo01>
+      <con:atributo02>${payload.atributo02 || ""}</con:atributo02>
+      <con:atributo03>${payload.atributo03 || ""}</con:atributo03>
+      <con:atributo04>${payload.atributo04 || ""}</con:atributo04>
+      <con:atributo05>${payload.atributo05 || ""}</con:atributo05>
+    </con:process>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+  try {
+    const res = await fetch("http://soa.braspress.com.br:80/soa-infra/services/dataPress/consultaLoteMultiplasOcorrenciasBraspress/consultalotemultiplasocorrenciasbraspress_client_ep", {
+      method: "POST",
+      headers: { "Content-Type": "text/xml; charset=utf-8", SOAPAction: "consultaLoteMultiplasOcorrenciasBraspress" },
+      body: soapEnvelope,
+    });
+    const text = await res.text();
+    let parsed: any = null;
+    let data: any = text;
+    try {
+      const { parseSoapResponse } = await import("../src/lib/soapParser");
+      parsed = await parseSoapResponse(text);
+      data = parsed;
+    } catch {}
+    return { status: res.status, ok: res.ok, data, raw: text, parsed };
+  } catch (e: any) {
+    return { status: 0, ok: false, data: { message: e.message }, raw: "" };
+  }
+});
+
+// IPC: proxy Braspress RotaCep - consulta de rota por CEP
+ipcMain.handle("call-rota-cep", async (_e, { cep, cnpj }: { cep: string; cnpj: string }) => {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const url = process.env.VITE_SUPABASE_URL || "";
+    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+    const supabase = createClient(url, anonKey);
+    const { data: cred, error: credErr } = await supabase.from("credenciais_etiquetas").select("cnpj,senha").eq("cnpj", cnpj).maybeSingle();
+    if (credErr || !cred) return { status: 0, ok: false, data: { message: credErr?.message || "Credencial não encontrada" } };
+    const senha = tryDecryptFernet((cred as any).senha, SECRET_KEY_RAW) ?? tryDecryptAESGCM((cred as any).senha, SECRET_KEY_RAW) ?? (cred as any).senha;
+    const basic = Buffer.from(`${(cred as any).cnpj}:${senha}`).toString("base64");
+    const res = await fetch("http://dataservices.braspress.com.br/dataservice/consultarotacep", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Basic ${basic}` },
+      body: JSON.stringify({ cep }),
+    });
+    const text = await res.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = text; }
+    return { status: res.status, ok: res.ok, data };
+  } catch (e: any) {
+    return { status: 0, ok: false, data: { message: e.message } };
+  }
+});

@@ -170,7 +170,7 @@ export function CotacaoPage() {
                 {errors.cnpjRemetente && <p className="text-xs text-red-600">{String(errors.cnpjRemetente.message)}</p>}
               </div>
               <div>
-                <Label>CNPJ Destinatário * <span className="text-muted-foreground font-normal">(CNPJ auto CEP, CPF manual)</span></Label><Input {...register("cnpjDestinatario")} placeholder="CPF ou CNPJ" />
+                <Label>CNPJ Destinatário *</Label><Input {...register("cnpjDestinatario")} placeholder="CPF ou CNPJ" />
                 {nomeDestinatario && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeDestinatario}</div>}
                 {errors.cnpjDestinatario && <p className="text-xs text-red-600">{String(errors.cnpjDestinatario.message)}</p>}
               </div>

@@ -3,9 +3,11 @@ import { ThemeProvider, useTheme } from "@/components/layout/ThemeProvider";
 import { CredentialSelector } from "@/features/auth/CredentialSelector";
 import { CotacaoPage } from "@/features/cotacao/CotacaoPage";
 import { TrackingPage } from "@/features/tracking/TrackingPage";
+import { SoapPage } from "@/features/soap/SoapPage";
+import { RotaCepPage } from "@/features/rotacep/RotaCepPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Moon, Sun, Calculator, Package, Download, RefreshCw } from "lucide-react";
+import { Moon, Sun, Calculator, Package, Download, RefreshCw, Truck, MapPin } from "lucide-react";
 
 function Header({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
   const { theme, setTheme } = useTheme();
@@ -17,6 +19,8 @@ function Header({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
           <nav className="flex gap-1">
             <Button variant={tab === "cotacao" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("cotacao")}><Calculator className="h-4 w-4 mr-2" />Cotação</Button>
             <Button variant={tab === "tracking" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("tracking")}><Package className="h-4 w-4 mr-2" />Tracking v3</Button>
+            <Button variant={tab === "soap" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("soap")}><Truck className="h-4 w-4 mr-2" />SOAP</Button>
+            <Button variant={tab === "rotacep" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("rotacep")}><MapPin className="h-4 w-4 mr-2" />RotaCep</Button>
           </nav>
         </div>
         <div className="flex items-center gap-2">
@@ -72,8 +76,8 @@ function AppInner() {
       <Header tab={tab} setTab={setTab} />
       <UpdateBanner />
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <CredentialSelector />
-        {tab === "cotacao" ? <CotacaoPage /> : <TrackingPage />}
+        {tab !== "soap" && tab !== "rotacep" && <CredentialSelector />}
+        {tab === "cotacao" ? <CotacaoPage /> : tab === "soap" ? <SoapPage /> : tab === "rotacep" ? <RotaCepPage /> : <TrackingPage />}
         <footer className="text-center text-xs text-muted-foreground pt-8 border-t">APP EDI • Produção • api.braspress.com • Tema claro/escuro • 700+ credenciais Supabase • Auto-update GitHub Releases</footer>
       </main>
     </div>
