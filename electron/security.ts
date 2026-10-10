@@ -11,9 +11,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // - Se safeStorage não estiver disponível, usa o ambiente em memória (fallback)
 //   sem persistir, evitando quebrar o app.
 
-type Secrets = { serviceRole: string; fernetSecret: string };
+type Secrets = { serviceRole: string; fernetSecret: string; supabaseUrl?: string };
 
 const VAULT_FILE = "secure_keys.enc";
+
+// URL pública do projeto Supabase. NÃO é segredo (vai embutida no bundle do
+// renderer via VITE_SUPABASE_URL). Serve de fallback para o app empacotado,
+// que não lê .env, garantindo que a URL esteja sempre disponível.
+const DEFAULT_SUPABASE_URL = "https://ynunxrvepaokkafxhzda.supabase.co";
 
 class SecurityVaultImpl {
   supabaseUrl = "";
@@ -27,8 +32,7 @@ class SecurityVaultImpl {
   initialize(): void {
     if (this.initialized) return;
 
-    this.supabaseUrl =
-      process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+    const envUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 
     let secrets = this.load();
 
@@ -36,7 +40,7 @@ class SecurityVaultImpl {
       const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
       const fernetSecret = process.env.SECRET_KEY || "";
       if (serviceRole && fernetSecret) {
-        secrets = { serviceRole, fernetSecret };
+        secrets = { serviceRole, fernetSecret, supabaseUrl: envUrl || undefined };
         this.persist(secrets);
       }
     }
@@ -47,9 +51,8 @@ class SecurityVaultImpl {
           "como variáveis de ambiente da máquina.",
       );
     }
-    if (!this.supabaseUrl) {
-      throw new Error("SUPABASE_URL ausente (defina SUPABASE_URL no ambiente).");
-    }
+
+    this.supabaseUrl = secrets.supabaseUrl || envUrl || DEFAULT_SUPABASE_URL;
 
     this.serviceRoleKey = secrets.serviceRole;
     this.fernetSecret = secrets.fernetSecret;

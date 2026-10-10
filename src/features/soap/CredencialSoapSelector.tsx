@@ -69,7 +69,7 @@ export function CredencialSoapSelector({ value, onSelect }: Props) {
           <CreateTokenSoapDialog onCreated={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["credenciais_soap"] }); }} defaultCnpj={selected} />
         </div>
 
-        {error && <div className="text-sm text-red-600 p-3 border border-red-200 rounded bg-red-50">Erro: {(error as Error).message}. Verifique RLS: crie policy SELECT para anon.</div>}
+        {error && <div className="text-sm text-red-600 p-3 border border-red-200 rounded bg-red-50">Erro: {(error as Error).message}</div>}
         {isLoading && <div className="text-sm text-muted-foreground">Carregando...</div>}
 
         <div className="border rounded-lg max-h-[320px] overflow-auto scrollbar-thin divide-y">
