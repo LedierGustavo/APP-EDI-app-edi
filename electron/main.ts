@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
+import fs from "fs";
 import { autoUpdater } from "electron-updater";
 import { SecurityVault } from "./security";
 import { resolvePassword, encryptFernet } from "./crypto";
@@ -92,7 +93,7 @@ function createWindow() {
     backgroundColor: "#ffffff",
     autoHideMenuBar: true,
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -426,47 +427,92 @@ function registerClienteCache() {
 }
 
 // ---------------------------------------------------------------------------
+// Lookup CNPJ -> CEP/nome (BrasilAPI + publica.cnpj.ws)
+// ---------------------------------------------------------------------------
+
+type CnpjLookupErrorType = "not_found" | "rate_limited" | "timeout" | "invalid";
+type CnpjLookupResponse =
+  | { ok: true; data: { cep: string | null; nome: string | null; source: string } }
+  | { ok: false; error_type: CnpjLookupErrorType };
+
+type SourceOutcome =
+  | { kind: "found"; cep: string | null; nome: string | null; source: string }
+  | { kind: "not_found" }
+  | { kind: "rate_limited" }
+  | { kind: "unavailable" };
+
+const CNPJ_LOOKUP_TIMEOUT_MS = 5000;
+
+async function lookupBrasilApi(digits: string): Promise<SourceOutcome> {
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`, {
+      signal: AbortSignal.timeout(CNPJ_LOOKUP_TIMEOUT_MS),
+    });
+    if (r.status === 429) return { kind: "rate_limited" };
+    if (r.status === 404 || r.status === 400) return { kind: "not_found" };
+    if (!r.ok) return { kind: "unavailable" };
+    const j = (await r.json()) as Record<string, unknown>;
+    const cep = j?.cep ? digitsOnly(j.cep) : null;
+    const nome = (j?.razao_social as string) || (j?.nome_fantasia as string) || null;
+    if (cep || nome) return { kind: "found", cep, nome, source: "brasilapi" };
+    return { kind: "not_found" };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+async function lookupCnpjWs(digits: string): Promise<SourceOutcome> {
+  try {
+    const r = await fetch(`https://publica.cnpj.ws/cnpj/${digits}`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(CNPJ_LOOKUP_TIMEOUT_MS),
+    });
+    if (r.status === 429) return { kind: "rate_limited" };
+    if (r.status === 404 || r.status === 400) return { kind: "not_found" };
+    if (!r.ok) return { kind: "unavailable" };
+    const j = (await r.json()) as Record<string, any>;
+    const est = j?.estabelecimento;
+    // O retorno do cnpj.ws varia: cep no estabelecimento, em endereco ou na raiz.
+    const cepRaw = est?.cep || j?.endereco?.cep || j?.cep;
+    const cep = cepRaw ? digitsOnly(cepRaw) : null;
+    const nome = j?.razao_social || j?.razaoSocial || est?.nome_fantasia || null;
+    if (cep || nome) return { kind: "found", cep, nome, source: "cnpj.ws" };
+    return { kind: "not_found" };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // IPCs - Integrações Braspress (proxy + parse no main)
 // ---------------------------------------------------------------------------
 
 function registerIntegracoes() {
   // Lookup CNPJ -> CEP/nome (BrasilAPI + publica.cnpj.ws) e upsert do nome no cache.
-  ipcMain.handle("lookup-cnpj", async (_e, cnpjRaw) => {
-    const digits = digitsOnly(cnpjRaw).slice(-14);
-    if (digits.length !== 14) return { cep: null, nome: null };
-    try {
-      const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
-      if (r.ok) {
-        const j = (await r.json()) as Record<string, unknown>;
-        const cep = j?.cep ? digitsOnly(j.cep) : null;
-        const nome = (j?.razao_social as string) || (j?.nome_fantasia as string) || null;
-        if (cep || nome) {
-          if (nome) await upsertClienteNomeSilent(digits, nome);
-          return { cep, nome, source: "brasilapi" };
-        }
-      }
-    } catch {
-      /* tenta fallback */
+  // Retorna status tipado para a UI diferenciar "não existe", "cota estourada" e "timeout".
+  ipcMain.handle("lookup-cnpj", async (_e, cnpjRaw): Promise<CnpjLookupResponse> => {
+    const digits = digitsOnly(cnpjRaw);
+    if (digits.length !== 14) return { ok: false, error_type: "invalid" };
+
+    const first = await lookupBrasilApi(digits);
+    if (first.kind === "found") {
+      if (first.nome) await upsertClienteNomeSilent(digits, first.nome);
+      return { ok: true, data: { cep: first.cep, nome: first.nome, source: first.source } };
     }
-    try {
-      const r2 = await fetch(`https://publica.cnpj.ws/cnpj/${digits}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (r2.ok) {
-        const j2 = (await r2.json()) as Record<string, any>;
-        const cepRaw = j2?.estabelecimento?.cep || j2?.cep;
-        const cep = cepRaw ? digitsOnly(cepRaw) : null;
-        const nome =
-          j2?.razao_social || j2?.razaoSocial || j2?.estabelecimento?.nome_fantasia || null;
-        if (cep || nome) {
-          if (nome) await upsertClienteNomeSilent(digits, nome);
-          return { cep, nome, source: "cnpj.ws" };
-        }
-      }
-    } catch {
-      /* ignore */
+
+    const second = await lookupCnpjWs(digits);
+    if (second.kind === "found") {
+      if (second.nome) await upsertClienteNomeSilent(digits, second.nome);
+      return { ok: true, data: { cep: second.cep, nome: second.nome, source: second.source } };
     }
-    return { cep: null, nome: null };
+
+    const error_type: CnpjLookupErrorType =
+      first.kind === "rate_limited" || second.kind === "rate_limited"
+        ? "rate_limited"
+        : first.kind === "unavailable" || second.kind === "unavailable"
+          ? "timeout"
+          : "not_found";
+    return { ok: false, error_type };
   });
 
   // Cotação
@@ -682,7 +728,37 @@ function setupAutoUpdater() {
 // Bootstrap
 // ---------------------------------------------------------------------------
 
+// Em desenvolvimento (não empacotado) carrega o .env da raiz para process.env,
+// sem sobrescrever o que já existe no SO. No app empacotado os segredos vêm
+// apenas do ambiente da máquina / cofre (safeStorage).
+function loadDevEnv() {
+  if (app.isPackaged) return;
+  try {
+    const envPath = path.join(__dirname, "..", ".env");
+    if (!fs.existsSync(envPath)) return;
+    for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!m) continue;
+      let val = m[2].trim();
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      if (process.env[m[1]] === undefined && val !== "") process.env[m[1]] = val;
+    }
+    if (!process.env.SUPABASE_URL && process.env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+    }
+  } catch (e) {
+    console.error("[env] falha ao carregar .env:", (e as Error).message);
+  }
+}
+
 app.whenReady().then(() => {
+  loadDevEnv();
+
   try {
     SecurityVault.initialize();
     console.log("[vault] inicializado. persistido:", SecurityVault.isPersisted());

@@ -110,6 +110,24 @@ function recover(raw, secret) {
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
+// Carrega .env do projeto (se existir) para conveniência. process.env tem
+// prioridade. O .env é ignorado pelo git, então não versiona segredos.
+function loadDotEnv() {
+  const p = path.join(process.cwd(), ".env");
+  if (!fs.existsSync(p)) return;
+  for (const line of fs.readFileSync(p, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/i);
+    if (!m) continue;
+    const key = m[1];
+    let val = m[2];
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = val;
+  }
+}
+loadDotEnv();
+
 const args = process.argv.slice(2);
 const COMMIT = args.includes("--commit");
 const LIMIT = (() => {
@@ -121,7 +139,7 @@ const ONLY = (() => {
   return a ? a.split("=")[1] : null;
 })();
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OLD_SECRET = process.env.OLD_SECRET_KEY;
 const NEW_SECRET = process.env.NEW_SECRET_KEY;

@@ -24,17 +24,29 @@ O renderer (Vite/React) **não conhece nenhuma chave** e **não fala com o Supab
 npm install
 ```
 
-Defina as variáveis **na máquina** (não em `.env` — o Electron não carrega `.env`):
+Em **desenvolvimento**, coloque os segredos no `.env` da raiz — o Electron carrega esse arquivo automaticamente quando **não empacotado**:
 
-```powershell
-# PowerShell (fixe com setx para persistir no SO)
-$env:SUPABASE_URL              = "https://SEU-PROJETO.supabase.co"
-$env:SUPABASE_SERVICE_ROLE_KEY = "<service_role>"
-$env:SECRET_KEY                = "<chave Fernet>"
-npm run dev:electron
+```dotenv
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role>
+SECRET_KEY=<chave Fernet>
 ```
 
-Em execuções seguintes não é preciso repetir as variáveis (o cofre já persistiu).
+Em **produção** (app empacotado) o `.env` **não** é lido; defina as variáveis no SO (ex.: `setx`) ou deixe o cofre persistir via `safeStorage`:
+
+```powershell
+$env:SUPABASE_SERVICE_ROLE_KEY = "<service_role>"
+$env:SECRET_KEY                = "<chave Fernet>"
+npm run dev
+```
+
+Em execuções seguintes no app empacotado não é preciso repetir as variáveis (o cofre já persistiu).
+
+### Scripts de desenvolvimento
+- `npm run dev` — sobe o Vite **e** o Electron juntos (HMR). É o modo com acesso ao cofre (a lista de credenciais funciona).
+- `npm run dev:web` — só o Vite no navegador. Sem cofre, as telas que exigem credenciais ficam indisponíveis.
+- `npm run dev:electron` — compila e abre o Electron contra os arquivos buildados (`dist/`), sem HMR.
+- `npm run build:main` — compila apenas o processo main/preload (`dist-electron/`).
 
 ## Rotação de chaves (SECRET_KEY)
 

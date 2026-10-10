@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -14,9 +14,24 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { JsonViewer, XmlViewer } from "@/components/ui/json-viewer";
 import { Plus, Trash2, Copy, Calculator, Truck, Hash, BadgeDollarSign, AlertTriangle, CheckCircle2, XCircle, MapPin, Loader2, Building2 } from "lucide-react";
-import { lookupCepByCNPJ } from "@/lib/cnpj";
+import { lookupCepByCNPJ, type CnpjLookupError } from "@/lib/cnpj";
 import { fetchClienteNome } from "@/lib/clienteCache";
 import { useQuery } from "@tanstack/react-query";
+
+// Mensagem transparente conforme o motivo da falha vindo do cofre/API.
+function cepLookupMessage(error: CnpjLookupError | undefined, cnpj: string): string {
+  switch (error) {
+    case "rate_limited":
+      return "Limite da API gratuita atingido. Tente em alguns segundos.";
+    case "timeout":
+      return "Não foi possível consultar a base do CNPJ agora. Tente novamente.";
+    case "invalid":
+      return `CNPJ inválido: ${cnpj}.`;
+    case "not_found":
+    default:
+      return `CEP não encontrado para o CNPJ ${cnpj}.`;
+  }
+}
 
 export function CotacaoPage() {
   const { basic, cred } = useAuthStore();
@@ -35,7 +50,7 @@ export function CotacaoPage() {
     }, { replace: true });
   };
 
-  const { register, control, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<any>({
+  const { register, control, handleSubmit, watch, setValue, formState: { errors } } = useForm<any>({
     resolver: zodResolver(cotacaoSchema),
     defaultValues: {
       cnpjRemetente: searchParams.get("cnpj") || "60701190000104",
@@ -58,92 +73,86 @@ export function CotacaoPage() {
     }
   }, [cred?.usuario, setValue]);
 
-  // Auto CEP via CNPJ - BrasilAPI + fallback publica.cnpj.ws, com debounce, normalização e toast
+  // Auto CEP via CNPJ - BrasilAPI + fallback publica.cnpj.ws, com debounce,
+  // normalização e toast. Preenche sempre que o CNPJ muda, exceto se o usuário
+  // editar o campo de CEP manualmente depois (aí o valor manual prevalece).
   const [cepLoading, setCepLoading] = useState<"origem" | "destino" | null>(null);
   const [cepAuto, setCepAuto] = useState({ origem: false, destino: false });
+  const cepManual = useRef<{ origem: boolean; destino: boolean }>({ origem: false, destino: false });
+  const cepAutoValue = useRef<{ origem: string; destino: string }>({ origem: "", destino: "" });
   const cepTimers = useRef<{ origem: any; destino: any }>({ origem: null, destino: null });
   const cepAbort = useRef<{ origem: AbortController | null; destino: AbortController | null }>({ origem: null, destino: null });
+
+  const scheduleAutoCep = useCallback(
+    (side: "origem" | "destino", cnpj: string) => {
+      // Novo CNPJ libera o preenchimento automático do CEP correspondente.
+      cepManual.current[side] = false;
+      if (cepTimers.current[side]) clearTimeout(cepTimers.current[side]);
+      cepAbort.current[side]?.abort();
+      const ctrl = new AbortController();
+      cepAbort.current[side] = ctrl;
+      setCepLoading(side);
+      const field = side === "origem" ? "cepOrigem" : "cepDestino";
+      cepTimers.current[side] = setTimeout(async () => {
+        try {
+          const result = await lookupCepByCNPJ(cnpj, ctrl.signal);
+          if (result.cep && !cepManual.current[side]) {
+            cepAutoValue.current[side] = result.cep;
+            setValue(field, result.cep, { shouldValidate: true, shouldDirty: true });
+            setCepAuto((p) => ({ ...p, [side]: true }));
+          } else if (!result.cep) {
+            toast.warning(cepLookupMessage(result.error, cnpj));
+          }
+        } catch (e: any) {
+          if (e?.name !== "AbortError") {
+            toast.error(`Falha ao buscar CEP do CNPJ ${cnpj}: ${e?.message ?? "erro"}`);
+          }
+        } finally {
+          setCepLoading((cur) => (cur === side ? null : cur));
+        }
+      }, 500);
+    },
+    [setValue],
+  );
 
   useEffect(() => {
     const sub = watch((values, { name }) => {
       if (name === "cnpjRemetente") {
-        const raw = String(values.cnpjRemetente || "");
-        const digits = raw.replace(/\D/g, "");
-        if (digits.length === 14) {
-          if (cepTimers.current.origem) clearTimeout(cepTimers.current.origem);
-          if (cepAbort.current.origem) cepAbort.current.origem.abort();
-          const ctrl = new AbortController();
-          cepAbort.current.origem = ctrl;
-          setCepLoading("origem");
-          cepTimers.current.origem = setTimeout(async () => {
-            try {
-              const cep = await lookupCepByCNPJ(digits, ctrl.signal);
-              if (cep) {
-                const atual = String(getValues("cepOrigem") || "").trim();
-                if (!atual) {
-                  setValue("cepOrigem", cep, { shouldValidate: true, shouldDirty: true });
-                  setCepAuto((p) => ({ ...p, origem: true }));
-                }
-              } else {
-                toast.warning(`CEP não encontrado para o CNPJ ${digits}.`);
-              }
-            } catch (e: any) {
-              if (e?.name !== "AbortError") {
-                toast.error(`Falha ao buscar CEP do CNPJ ${digits}: ${e?.message ?? "erro"}`);
-              }
-            }
-            setCepLoading(null);
-          }, 500);
-        }
-      }
-      if (name === "cnpjDestinatario") {
+        const digits = String(values.cnpjRemetente || "").replace(/\D/g, "");
+        if (digits.length === 14) scheduleAutoCep("origem", digits);
+      } else if (name === "cnpjDestinatario") {
         const c = String(values.cnpjDestinatario || "").replace(/\D/g, "");
-        if (c.length === 14) {
-          if (cepTimers.current.destino) clearTimeout(cepTimers.current.destino);
-          if (cepAbort.current.destino) cepAbort.current.destino.abort();
-          const ctrl = new AbortController();
-          cepAbort.current.destino = ctrl;
-          setCepLoading("destino");
-          cepTimers.current.destino = setTimeout(async () => {
-            try {
-              const cep = await lookupCepByCNPJ(c, ctrl.signal);
-              if (cep) {
-                const atual = String(getValues("cepDestino") || "").trim();
-                if (!atual) {
-                  setValue("cepDestino", cep, { shouldValidate: true, shouldDirty: true });
-                  setCepAuto((p) => ({ ...p, destino: true }));
-                }
-              }
-            } catch {}
-            setCepLoading(null);
-          }, 500);
-        } else if (c.length === 11) {
-          // CPF 11 dígitos -> manual, não busca
+        if (c.length === 14) scheduleAutoCep("destino", c);
+      } else if (name === "cepOrigem" || name === "cepDestino") {
+        const side = name === "cepOrigem" ? "origem" : "destino";
+        const val = String((values as any)[name] || "").replace(/\D/g, "");
+        // Se o valor difere do que o auto-CEP gravou, foi edição manual do usuário.
+        if (val && val !== cepAutoValue.current[side].replace(/\D/g, "")) {
+          cepManual.current[side] = true;
+          setCepAuto((p) => (p[side] ? { ...p, [side]: false } : p));
         }
       }
     });
+    const timers = cepTimers.current;
+    const aborts = cepAbort.current;
     return () => {
       sub.unsubscribe();
-      if (cepTimers.current.origem) clearTimeout(cepTimers.current.origem);
-      if (cepTimers.current.destino) clearTimeout(cepTimers.current.destino);
+      if (timers.origem) clearTimeout(timers.origem);
+      if (timers.destino) clearTimeout(timers.destino);
+      aborts.origem?.abort();
+      aborts.destino?.abort();
     };
-  }, [watch, setValue, getValues]);
+  }, [watch, scheduleAutoCep]);
 
-  // Busca inicial no mount para CNPJ padrão 60701190000104 (Itaú) e para cred selecionado
+  // Busca inicial no mount para o CNPJ padrão (Itaú) e/ou o cred selecionado.
   useEffect(() => {
-    const init = async () => {
-      const cnpjRem = String(watch("cnpjRemetente") || "").replace(/\D/g, "");
-      if (cnpjRem && cnpjRem.length === 14) {
-        const cep = await lookupCepByCNPJ(cnpjRem).catch(() => null);
-        if (cep && !String(getValues("cepOrigem") || "").trim()) {
-          setValue("cepOrigem", cep, { shouldValidate: true });
-          setCepAuto((p) => ({ ...p, origem: true }));
-        }
-      }
+    const init = (key: "cnpjRemetente" | "cnpjDestinatario", side: "origem" | "destino") => {
+      const digits = String(watch(key) || "").replace(/\D/g, "");
+      if (digits.length === 14) scheduleAutoCep(side, digits);
     };
-    init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    init("cnpjRemetente", "origem");
+    init("cnpjDestinatario", "destino");
+  }, [watch, scheduleAutoCep]);
 
   const { fields, append, remove } = useFieldArray({ control, name: "cubagem" });
   const values = watch();

@@ -30,7 +30,10 @@ export interface ElectronApi {
   callTracking: (args: unknown) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
   callTrackingSoap: (args: unknown) => Promise<{ status: number; ok: boolean; data: unknown; raw: string; parsed?: unknown }>;
   callRotaCep: (args: { cep: string; cnpj: string }) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
-  lookupCnpj: (cnpj: string) => Promise<{ cep: string | null; nome?: string | null; source?: string }>;
+  lookupCnpj: (cnpj: string) => Promise<
+    | { ok: true; data: { cep: string | null; nome: string | null; source: string } }
+    | { ok: false; error_type: "not_found" | "rate_limited" | "timeout" | "invalid" }
+  >;
 
   checkForUpdates: () => Promise<unknown>;
   restartToUpdate: () => Promise<void>;
