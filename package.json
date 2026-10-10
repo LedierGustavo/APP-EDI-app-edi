@@ -14,7 +14,7 @@
     "dev": "vite",
     "dev:electron": "npm run build:electron && electron .",
     "build": "tsc -b && vite build",
-    "build:electron": "powershell -Command \"npx tsc -p tsconfig.electron.json; if (Test-Path dist-electron/main.js) { Move-Item -Path dist-electron/main.js -Destination dist-electron/main.cjs -Force }; if (Test-Path dist-electron/preload.js) { Move-Item -Path dist-electron/preload.js -Destination dist-electron/preload.cjs -Force }\" && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json && node scripts/fix-electron-ext.mjs && vite build",
     "dist": "npm run build:electron && electron-builder --win --publish never",
     "release": "npm run build:electron && electron-builder --win --publish always",
     "lint": "oxlint",
@@ -26,7 +26,7 @@
     "appId": "com.appedi.desktop",
     "productName": "APP EDI",
     "directories": {
-      "output": "C:/Users/ledie/AppData/Local/Temp/opencode/app-edi-release"
+      "output": "release"
     },
     "files": [
       "dist/**",
@@ -72,6 +72,7 @@
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.89.0",
     "react-router-dom": "^7.18.4",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "zod": "^4.6.5",
     "zustand": "^5.0.15"

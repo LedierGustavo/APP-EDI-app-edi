@@ -16,6 +16,9 @@ release
 .env
 !.env.example
 
+# Backups locais da migração de chaves (contêm ciphertext; nunca versionar)
+scripts/_backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

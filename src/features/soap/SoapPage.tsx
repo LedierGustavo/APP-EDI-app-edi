@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/ui/PasswordField";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { JsonViewer, XmlViewer } from "@/components/ui/json-viewer";
-import { Search, Building2, Eye, EyeOff, Truck, CheckCircle2, XCircle } from "lucide-react";
+import { Search, Building2, Truck, CheckCircle2, XCircle } from "lucide-react";
 import { fetchClienteNome } from "@/lib/clienteCache";
 import { fetchTokenByCnpj, upsertTokenSoap } from "@/lib/credenciaisSoap";
 import { parseSoapResponse, type SoapOcorrencia } from "@/lib/soapParser";
@@ -43,11 +46,20 @@ function statusVariant(status: string) {
 export function SoapPage() {
   const [resultSoap, setResultSoap] = useState<any>(null);
   const [loadingSoap, setLoadingSoap] = useState(false);
-  const [showToken, setShowToken] = useState(false);
   const [editingToken, setEditingToken] = useState(false);
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const formSoap = useForm({ resolver: zodResolver(soapSchema), defaultValues: { cnpjCliente: "", token: "", tipoCliente: "1", numeroNotaFiscal: "", serieNotaFiscal: "1", numeroCTe: "", cnpjDestinatario: "", atributo01: "", atributo02: "", atributo03: "", atributo04: "", atributo05: "" } } as any);
+  const syncParam = (key: string, value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
+  const formSoap = useForm({ resolver: zodResolver(soapSchema), defaultValues: { cnpjCliente: searchParams.get("cnpj") || "", token: "", tipoCliente: "1", numeroNotaFiscal: searchParams.get("nf") || "", serieNotaFiscal: "1", numeroCTe: "", cnpjDestinatario: "", atributo01: "", atributo02: "", atributo03: "", atributo04: "", atributo05: "" } } as any);
 
   const cnpjSoapWatch = formSoap.watch("cnpjCliente") || "";
   const { data: nomeSoap } = useQuery({ queryKey: ["cliente_cache", cnpjSoapWatch], queryFn: () => fetchClienteNome(cnpjSoapWatch), enabled: cnpjSoapWatch.replace(/\D/g,"").length === 14, staleTime: 5*60*1000 });
@@ -61,8 +73,9 @@ export function SoapPage() {
     const cnpj = formSoap.getValues("cnpjCliente");
     const token = formSoap.getValues("token");
     const res = await upsertTokenSoap(cnpj, token);
-    if (res.error) alert(res.error);
+    if (res.error) toast.error(res.error);
     else {
+      toast.success("Token salvo com sucesso.");
       setEditingToken(false);
       queryClient.invalidateQueries({ queryKey: ["credenciais_soap"] });
     }
@@ -70,6 +83,8 @@ export function SoapPage() {
 
   const onSearchSoap = async (data: any) => {
     setLoadingSoap(true);
+    syncParam("cnpj", String(data.cnpjCliente).replace(/\D/g, ""));
+    syncParam("nf", String(data.numeroNotaFiscal || ""));
     try {
       const payload = {
         cnpjCliente: data.cnpjCliente.replace(/\D/g, "").padStart(14, "0"),
@@ -113,20 +128,15 @@ export function SoapPage() {
           <form onSubmit={formSoap.handleSubmit(onSearchSoap)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <Label>CNPJ Cliente *</Label><Input {...formSoap.register("cnpjCliente")} placeholder="04896434000504" />
+                <Label htmlFor="soap-cnpj">CNPJ Cliente *</Label><Input id="soap-cnpj" {...formSoap.register("cnpjCliente", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} placeholder="04896434000504" />
                 <p className="text-[11px] text-muted-foreground">Selecione na lista acima ou digite manualmente</p>
                 {nomeSoap && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeSoap}</div>}
                 {formSoap.formState.errors.cnpjCliente && <p className="text-xs text-red-600">{String(formSoap.formState.errors.cnpjCliente.message)}</p>}
               </div>
               <div>
-                <Label className="flex items-center gap-2">Token * {tokenSoap && !editingToken && <span className="text-xs text-emerald-600">(do banco)</span>}</Label>
+                <Label htmlFor="soap-token" className="flex items-center gap-2">Token * {tokenSoap && !editingToken && <span className="text-xs text-emerald-600">(do banco)</span>}</Label>
                 <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Input type={showToken ? "text" : "password"} {...formSoap.register("token")} placeholder="@Alpar#123" className="pr-10" disabled={!editingToken && !!tokenSoap} />
-                    <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-2 top-2 text-muted-foreground">
-                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+                  <PasswordField id="soap-token" {...formSoap.register("token")} placeholder="@Alpar#123" disabled={!editingToken && !!tokenSoap} containerClassName="flex-1" />
                   {tokenSoap && !editingToken ? (
                     <Button type="button" variant="outline" onClick={() => setEditingToken(true)}>Editar</Button>
                   ) : tokenSoap && editingToken ? (
@@ -138,22 +148,22 @@ export function SoapPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div><Label>Tipo Cliente</Label><select {...formSoap.register("tipoCliente")} className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="1">1</option><option value="2">2</option></select></div>
-              <div><Label>Nota Fiscal *</Label><Input {...formSoap.register("numeroNotaFiscal")} placeholder="244142" />{formSoap.formState.errors.numeroNotaFiscal && <p className="text-xs text-red-600">{String(formSoap.formState.errors.numeroNotaFiscal.message)}</p>}</div>
-              <div><Label>Série NF</Label><Input {...formSoap.register("serieNotaFiscal")} placeholder="1" /></div>
+              <div><Label htmlFor="soap-tipo">Tipo Cliente</Label><select id="soap-tipo" {...formSoap.register("tipoCliente")} className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="1">1</option><option value="2">2</option></select></div>
+              <div><Label htmlFor="soap-nf">Nota Fiscal *</Label><Input id="soap-nf" {...formSoap.register("numeroNotaFiscal", { onBlur: (e) => syncParam("nf", String(e.target.value)) })} placeholder="244142" />{formSoap.formState.errors.numeroNotaFiscal && <p className="text-xs text-red-600">{String(formSoap.formState.errors.numeroNotaFiscal.message)}</p>}</div>
+              <div><Label htmlFor="soap-serie">Série NF</Label><Input id="soap-serie" {...formSoap.register("serieNotaFiscal")} placeholder="1" /></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div><Label>Nº CTe (opcional)</Label><Input {...formSoap.register("numeroCTe")} placeholder="" /></div>
-              <div><Label>CNPJ Destinatário (opcional)</Label><Input {...formSoap.register("cnpjDestinatario")} placeholder="" /></div>
+              <div><Label htmlFor="soap-cte">Nº CTe (opcional)</Label><Input id="soap-cte" {...formSoap.register("numeroCTe")} placeholder="" /></div>
+              <div><Label htmlFor="soap-cnpj-dest">CNPJ Destinatário (opcional)</Label><Input id="soap-cnpj-dest" {...formSoap.register("cnpjDestinatario")} placeholder="" /></div>
             </div>
             <details className="border rounded-lg p-3 bg-muted/20">
               <summary className="text-sm font-medium cursor-pointer">Atributos 01-05 (opcionais)</summary>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                <div><Label>Atributo01</Label><Input {...formSoap.register("atributo01")} /></div>
-                <div><Label>Atributo02</Label><Input {...formSoap.register("atributo02")} /></div>
-                <div><Label>Atributo03</Label><Input {...formSoap.register("atributo03")} /></div>
-                <div><Label>Atributo04</Label><Input {...formSoap.register("atributo04")} /></div>
-                <div><Label>Atributo05</Label><Input {...formSoap.register("atributo05")} /></div>
+                <div><Label htmlFor="soap-atr01">Atributo01</Label><Input id="soap-atr01" {...formSoap.register("atributo01")} /></div>
+                <div><Label htmlFor="soap-atr02">Atributo02</Label><Input id="soap-atr02" {...formSoap.register("atributo02")} /></div>
+                <div><Label htmlFor="soap-atr03">Atributo03</Label><Input id="soap-atr03" {...formSoap.register("atributo03")} /></div>
+                <div><Label htmlFor="soap-atr04">Atributo04</Label><Input id="soap-atr04" {...formSoap.register("atributo04")} /></div>
+                <div><Label htmlFor="soap-atr05">Atributo05</Label><Input id="soap-atr05" {...formSoap.register("atributo05")} /></div>
               </div>
             </details>
             <div className="flex gap-2">

@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/ui/PasswordField";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { upsertEtiqueta } from "@/lib/credenciaisEtiquetas";
 
 const schema = z.object({
@@ -17,7 +18,6 @@ const schema = z.object({
 
 export function CreateEtiquetaDialog({ onCreated, defaultCnpj }: { onCreated?: () => void; defaultCnpj?: string }) {
   const [open, setOpen] = useState(false);
-  const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -25,6 +25,13 @@ export function CreateEtiquetaDialog({ onCreated, defaultCnpj }: { onCreated?: (
     resolver: zodResolver(schema),
     defaultValues: { cnpj: defaultCnpj || "", senha: "", codigoCliente: "" },
   });
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setLoading(true);
@@ -47,35 +54,30 @@ export function CreateEtiquetaDialog({ onCreated, defaultCnpj }: { onCreated?: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setOpen(false)}>
-      <Card className="w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <Card role="dialog" aria-modal="true" aria-labelledby="create-etq-title" className="w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between">
-            <span>Nova Credencial Etiqueta</span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)}><X className="h-4 w-4" /></Button>
+            <span id="create-etq-title">Nova Credencial Etiqueta</span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)} aria-label="Fechar"><X className="h-4 w-4" /></Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <Label>CNPJ *</Label>
-              <Input {...register("cnpj")} placeholder="58344029000170" />
+              <Label htmlFor="ce-cnpj">CNPJ *</Label>
+              <Input id="ce-cnpj" autoFocus {...register("cnpj")} placeholder="58344029000170" />
               {errors.cnpj && <p className="text-xs text-red-600 mt-1">{errors.cnpj.message}</p>}
             </div>
             <div>
-              <Label>Senha *</Label>
-              <div className="relative">
-                <Input type={show ? "text" : "password"} {...register("senha")} placeholder="••••••" className="pr-10" />
-                <button type="button" onClick={() => setShow(!show)} className="absolute right-2 top-2 text-muted-foreground">
-                  {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <Label htmlFor="ce-senha">Senha *</Label>
+              <PasswordField id="ce-senha" {...register("senha")} placeholder="••••••" />
               {errors.senha && <p className="text-xs text-red-600 mt-1">{errors.senha.message}</p>}
             </div>
             <div>
-              <Label>Código do Cliente *</Label>
-              <Input {...register("codigoCliente")} placeholder="12345" />
+              <Label htmlFor="ce-codigo">Código do Cliente *</Label>
+              <Input id="ce-codigo" {...register("codigoCliente")} placeholder="12345" />
               {errors.codigoCliente && <p className="text-xs text-red-600 mt-1">{errors.codigoCliente.message}</p>}
-              <p className="text-[11px] text-muted-foreground mt-1">Criptografado via Rust antes do INSERT em credenciais_etiquetas</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Criptografado no cofre (Electron) antes do INSERT em credenciais_etiquetas</p>
             </div>
             {msg && <div className={`text-xs p-2 rounded border ${msg.type === "success" ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>{msg.text}</div>}
             <div className="flex gap-2 justify-end">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchCredenciais, resolveSenha } from "./credentialsService";
+import { fetchCredenciais, obterSenha } from "./credentialsService";
 import { useAuthStore } from "@/store/authStore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ export function CredentialSelector() {
   const [page, setPage] = useState(0);
   const pageSize = 50;
   const { cred, basic, setCred } = useAuthStore();
-  const [selectedRaw, setSelectedRaw] = useState<{ usuario: string; senha: string } | null>(null);
   const [showSenha, setShowSenha] = useState(false);
   const [copied, setCopied] = useState(false);
   const [fetchingCnpj, setFetchingCnpj] = useState<string | null>(null);
@@ -48,11 +47,15 @@ export function CredentialSelector() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const handleSelect = async (usuario: string, senhaRaw: string) => {
-    const senha = await resolveSenha(senhaRaw);
-    setSelectedRaw({ usuario, senha: senhaRaw });
-    setCred({ usuario, senha, senhaRaw });
-    setShowSenha(false);
+  const handleSelect = async (usuario: string) => {
+    try {
+      // A descriptografia acontece no main (cofre); o renderer recebe a senha pura.
+      const senha = await obterSenha(usuario);
+      setCred({ usuario, senha, senhaRaw: "" });
+      setShowSenha(false);
+    } catch {
+      // erro reportado pelo cofre; nada a fazer aqui por ora
+    }
   };
 
   const handleCopy = async (text: string) => {
@@ -86,7 +89,7 @@ export function CredentialSelector() {
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar usuário ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+            <Input aria-label="Buscar usuário ou Razão Social" placeholder="Buscar usuário ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
           </div>
           <Button variant="outline" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-2" />Recarregar</Button>
           <CreateCredentialDialog onCreated={() => refetch()} />
@@ -100,7 +103,14 @@ export function CredentialSelector() {
             const cnpj = c.usuario.split("_")[0].replace(/\D/g, "").padStart(14, "0");
             const nome = nomesMap?.get(cnpj);
             return (
-              <button key={c.id} onClick={() => handleSelect(c.usuario, c.senha)} className={`w-full text-left px-3 py-2 hover:bg-accent flex flex-col gap-0.5 ${cred?.usuario === c.usuario ? "bg-primary/10" : ""}`}>
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelect(c.usuario)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(c.usuario); } }}
+                className={`w-full text-left px-3 py-2 hover:bg-accent flex flex-col gap-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${cred?.usuario === c.usuario ? "bg-primary/10" : ""}`}
+              >
                 <span className="flex items-center justify-between w-full">
                   <span className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-muted-foreground" />{c.usuario}</span>
                   <span className="text-xs text-muted-foreground">{c.criado_em ? new Date(c.criado_em).toLocaleDateString() : ""}</span>
@@ -111,6 +121,7 @@ export function CredentialSelector() {
                     <span className="text-primary font-medium truncate">{nome}</span>
                   ) : (
                     <button
+                      type="button"
                       onClick={(e) => handleFetchNome(e, cnpj)}
                       disabled={fetchingCnpj === cnpj}
                       className="italic text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
@@ -124,7 +135,7 @@ export function CredentialSelector() {
                     </button>
                   )}
                 </span>
-              </button>
+              </div>
             );
           })}
           {data?.data.length === 0 && !isLoading && <div className="p-4 text-sm text-muted-foreground text-center">Nenhum usuário encontrado</div>}
@@ -167,7 +178,7 @@ export function CredentialSelector() {
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="text-[11px] text-muted-foreground">Raw {selectedRaw?.senha.startsWith("gAAAAA") ? "Fernet" : "texto puro"} • {selectedRaw?.senha.length}→{cred.senha.length}</div>
+                <div className="text-[11px] text-muted-foreground">Descriptografada no cofre (Electron)</div>
               </div>
             </div>
             <div className="flex gap-2">

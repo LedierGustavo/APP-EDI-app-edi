@@ -1,65 +1,48 @@
-import { supabase } from "@/lib/supabase";
 import { normalizeCNPJ } from "@/lib/cnpj";
+import { getApi } from "@/lib/ipc";
 
 export type ClienteCache = { cnpj: string; nome_cliente: string | null; atualizado_em: string | null };
 
-const memoryCache = new Map<string, { nome: string | null; ts: number }>();
-const TTL = 5 * 60 * 1000;
-
+// Cache de nomes de cliente (não sensível), resolvido pelo cofre no main.
 export async function fetchClienteNome(cnpjRaw: string): Promise<string | null> {
   const cnpj = normalizeCNPJ(cnpjRaw);
   if (cnpj.length !== 14) return null;
-  const cached = memoryCache.get(cnpj);
-  if (cached && Date.now() - cached.ts < TTL) return cached.nome;
-  const { data, error } = await supabase.from("cliente_cache").select("cnpj,nome_cliente").eq("cnpj", cnpj).maybeSingle();
-  if (error) {
-    console.warn("[clienteCache] fetch erro:", error.message);
-    return null;
-  }
-  const nome = (data as any)?.nome_cliente ?? null;
-  memoryCache.set(cnpj, { nome, ts: Date.now() });
-  return nome;
+  const api = getApi();
+  if (!api) return null;
+  const res = await api.obterClienteNome({ cnpj });
+  return res.ok ? res.data : null;
 }
 
 export async function fetchClientesBatch(cnpjs: string[]): Promise<Map<string, string | null>> {
   const norm = [...new Set(cnpjs.map(normalizeCNPJ).filter((c) => c.length === 14))];
-  const missing = norm.filter((c) => {
-    const hit = memoryCache.get(c);
-    return !hit || Date.now() - hit.ts >= TTL;
-  });
-  if (missing.length > 0) {
-    const { data, error } = await supabase.from("cliente_cache").select("cnpj,nome_cliente").in("cnpj", missing);
-    if (!error && data) {
-      (data as any[]).forEach((r) => memoryCache.set(r.cnpj, { nome: r.nome_cliente, ts: Date.now() }));
-      missing.forEach((c) => {
-        if (!memoryCache.has(c)) memoryCache.set(c, { nome: null, ts: Date.now() });
-      });
-    } else if (error) {
-      console.warn("[clienteCache] batch erro:", error.message);
-    }
-  }
   const map = new Map<string, string | null>();
-  norm.forEach((c) => map.set(c, memoryCache.get(c)?.nome ?? null));
+  const api = getApi();
+  if (norm.length === 0 || !api) {
+    norm.forEach((c) => map.set(c, null));
+    return map;
+  }
+  const res = await api.listarClienteNomes({ cnpjs: norm });
+  if (!res.ok) {
+    norm.forEach((c) => map.set(c, null));
+    return map;
+  }
+  norm.forEach((c) => map.set(c, res.data[c] ?? null));
   return map;
 }
 
 export async function upsertClienteCache(cnpjRaw: string, nome: string): Promise<void> {
   const cnpj = normalizeCNPJ(cnpjRaw);
   if (cnpj.length !== 14 || !nome) return;
-  const clean = nome.trim().slice(0, 200);
-  const { error } = await supabase.from("cliente_cache").upsert({ cnpj, nome_cliente: clean, atualizado_em: new Date().toISOString() }, { onConflict: "cnpj" });
-  if (error) {
-    console.warn("[clienteCache] upsert erro:", error.message);
-  } else {
-    memoryCache.set(cnpj, { nome: clean, ts: Date.now() });
-  }
+  const api = getApi();
+  if (!api) return;
+  await api.upsertClienteCache({ cnpj, nome: nome.trim().slice(0, 200) });
 }
 
-// Busca CNPJs por nome (para filtro combinado)
 export async function searchCnpjsByNome(nome: string): Promise<string[]> {
   const term = nome.trim();
   if (term.length < 2) return [];
-  const { data, error } = await supabase.from("cliente_cache").select("cnpj").ilike("nome_cliente", `%${term}%`).limit(50);
-  if (error || !data) return [];
-  return (data as any[]).map((r) => r.cnpj);
+  const api = getApi();
+  if (!api) return [];
+  const res = await api.buscarCnpjsPorNome({ nome: term });
+  return res.ok ? res.data : [];
 }

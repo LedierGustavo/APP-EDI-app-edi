@@ -121,14 +121,16 @@ export function XmlViewer({ xml, title = "XML" }: { xml: string; title?: string 
         </Button>
       </div>
       <pre className="text-xs font-mono p-3 max-h-[420px] overflow-auto scrollbar-thin bg-muted/20 whitespace-pre-wrap break-all">
-        {pretty.split("\n").map((line, i) => {
-          const isTag = line.trim().startsWith("<");
-          return (
-            <div key={i} className={isTag ? "text-cyan-600 dark:text-cyan-400" : "text-foreground"}>
-              {line}
-            </div>
-          );
-        })}
+        <code>
+          {pretty.split("\n").map((line, i) => {
+            const isTag = line.trim().startsWith("<");
+            return (
+              <span key={i} className={cn("block", isTag ? "text-cyan-600 dark:text-cyan-400" : "text-foreground")}>
+                {line}
+              </span>
+            );
+          })}
+        </code>
       </pre>
     </div>
   );

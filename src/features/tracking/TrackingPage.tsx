@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { trackingByNfSchema, trackingByPedidoSchema } from "@/lib/validators";
@@ -29,9 +31,19 @@ export function TrackingPage() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [returnType] = useState("json");
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const formNf = useForm({ resolver: zodResolver(trackingByNfSchema), defaultValues: { cnpj: "", notaFiscal: "" } });
-  const formPedido = useForm({ resolver: zodResolver(trackingByPedidoSchema), defaultValues: { cnpj: "", numPedido: "" } });
+  const syncParam = (key: string, value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
+  const formNf = useForm({ resolver: zodResolver(trackingByNfSchema), defaultValues: { cnpj: searchParams.get("cnpj") || "", notaFiscal: searchParams.get("nf") || "" } });
+  const formPedido = useForm({ resolver: zodResolver(trackingByPedidoSchema), defaultValues: { cnpj: searchParams.get("cnpj") || "", numPedido: searchParams.get("pedido") || "" } });
 
   const cnpjNfWatch = formNf.watch("cnpj") || "";
   const cnpjPedidoWatch = formPedido.watch("cnpj") || "";
@@ -49,9 +61,11 @@ export function TrackingPage() {
   }, [cred?.usuario]);
 
   const onSearch = async (tipo: "byNf" | "byNumPedido", cnpj: string, valor: string) => {
-    if (!basic) { alert("Selecione credencial"); return; }
+    if (!basic) { toast.error("Selecione uma credencial."); return; }
     setLoading(true);
     const cnpjDigits = cnpj.replace(/\D/g, "");
+    syncParam("cnpj", cnpjDigits);
+    syncParam(tipo === "byNf" ? "nf" : "pedido", valor);
     try {
       const res = (window as any).api
         ? await (window as any).api.callTracking({ basic, cnpj: cnpjDigits, valor, tipo, returnType })
@@ -80,11 +94,11 @@ export function TrackingPage() {
             <CardContent>
               <form onSubmit={formNf.handleSubmit((d) => onSearch("byNf", d.cnpj, d.notaFiscal))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div>
-                  <Label>CNPJ Tomador *</Label><Input {...formNf.register("cnpj")} placeholder="12345678912345" />
+                  <Label htmlFor="trk-nf-cnpj">CNPJ Tomador *</Label><Input id="trk-nf-cnpj" {...formNf.register("cnpj")} placeholder="12345678912345" />
                   {nomeNf && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeNf}</div>}
                   {formNf.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formNf.formState.errors.cnpj.message)}</p>}
                 </div>
-                <div><Label>Nota Fiscal *</Label><Input {...formNf.register("notaFiscal")} placeholder="12345" />{formNf.formState.errors.notaFiscal && <p className="text-xs text-red-600">{String(formNf.formState.errors.notaFiscal.message)}</p>}</div>
+                <div><Label htmlFor="trk-nf-nota">Nota Fiscal *</Label><Input id="trk-nf-nota" {...formNf.register("notaFiscal")} placeholder="12345" />{formNf.formState.errors.notaFiscal && <p className="text-xs text-red-600">{String(formNf.formState.errors.notaFiscal.message)}</p>}</div>
                 <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
               <p className="text-xs text-muted-foreground mt-2">GET /v3/tracking/byNf/{"{cnpj}"}/{"{notaFiscal}"}/json</p>
@@ -98,11 +112,11 @@ export function TrackingPage() {
             <CardContent>
               <form onSubmit={formPedido.handleSubmit((d) => onSearch("byNumPedido", d.cnpj, d.numPedido))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div>
-                  <Label>CNPJ Tomador *</Label><Input {...formPedido.register("cnpj")} placeholder="12345678912345" />
+                  <Label htmlFor="trk-ped-cnpj">CNPJ Tomador *</Label><Input id="trk-ped-cnpj" {...formPedido.register("cnpj")} placeholder="12345678912345" />
                   {nomePedido && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomePedido}</div>}
                   {formPedido.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formPedido.formState.errors.cnpj.message)}</p>}
                 </div>
-                <div><Label>Nº Pedido *</Label><Input {...formPedido.register("numPedido")} placeholder="PED123" />{formPedido.formState.errors.numPedido && <p className="text-xs text-red-600">{String(formPedido.formState.errors.numPedido.message)}</p>}</div>
+                <div><Label htmlFor="trk-ped-num">Nº Pedido *</Label><Input id="trk-ped-num" {...formPedido.register("numPedido")} placeholder="PED123" />{formPedido.formState.errors.numPedido && <p className="text-xs text-red-600">{String(formPedido.formState.errors.numPedido.message)}</p>}</div>
                 <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
               <p className="text-xs text-muted-foreground mt-2">GET /v3/tracking/byNumPedido/{"{cnpj}"}/{"{numPedido}"}/json</p>

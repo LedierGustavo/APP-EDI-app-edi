@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cotacaoSchema } from "@/lib/validators";
@@ -22,15 +24,25 @@ export function CotacaoPage() {
   const [loading, setLoading] = useState(false);
   const [returnType, setReturnType] = useState<"json" | "xml">("json");
   const [resultTab, setResultTab] = useState("visual");
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const { register, control, handleSubmit, watch, setValue, formState: { errors } } = useForm<any>({
+  const syncParam = (key: string, value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
+  const { register, control, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<any>({
     resolver: zodResolver(cotacaoSchema),
     defaultValues: {
-      cnpjRemetente: "60701190000104",
+      cnpjRemetente: searchParams.get("cnpj") || "60701190000104",
       cnpjDestinatario: "30539356867",
       modal: "R",
       tipoFrete: "1",
-      cepOrigem: "02323000",
+      cepOrigem: searchParams.get("cep") || "02323000",
       cepDestino: "07093090",
       vlrMercadoria: 100,
       peso: 50.55,
@@ -48,6 +60,7 @@ export function CotacaoPage() {
 
   // Auto CEP via CNPJ - BrasilAPI + fallback publica.cnpj.ws, com debounce, normalização e toast
   const [cepLoading, setCepLoading] = useState<"origem" | "destino" | null>(null);
+  const [cepAuto, setCepAuto] = useState({ origem: false, destino: false });
   const cepTimers = useRef<{ origem: any; destino: any }>({ origem: null, destino: null });
   const cepAbort = useRef<{ origem: AbortController | null; destino: AbortController | null }>({ origem: null, destino: null });
 
@@ -66,12 +79,18 @@ export function CotacaoPage() {
             try {
               const cep = await lookupCepByCNPJ(digits, ctrl.signal);
               if (cep) {
-                setValue("cepOrigem", cep, { shouldValidate: true, shouldDirty: true });
+                const atual = String(getValues("cepOrigem") || "").trim();
+                if (!atual) {
+                  setValue("cepOrigem", cep, { shouldValidate: true, shouldDirty: true });
+                  setCepAuto((p) => ({ ...p, origem: true }));
+                }
               } else {
-                console.warn(`[CEP] não encontrado para CNPJ ${digits}`);
+                toast.warning(`CEP não encontrado para o CNPJ ${digits}.`);
               }
             } catch (e: any) {
-              if (e?.name !== "AbortError") console.warn(`[CEP] erro CNPJ ${digits}:`, e?.message);
+              if (e?.name !== "AbortError") {
+                toast.error(`Falha ao buscar CEP do CNPJ ${digits}: ${e?.message ?? "erro"}`);
+              }
             }
             setCepLoading(null);
           }, 500);
@@ -88,7 +107,13 @@ export function CotacaoPage() {
           cepTimers.current.destino = setTimeout(async () => {
             try {
               const cep = await lookupCepByCNPJ(c, ctrl.signal);
-              if (cep) setValue("cepDestino", cep, { shouldValidate: true, shouldDirty: true });
+              if (cep) {
+                const atual = String(getValues("cepDestino") || "").trim();
+                if (!atual) {
+                  setValue("cepDestino", cep, { shouldValidate: true, shouldDirty: true });
+                  setCepAuto((p) => ({ ...p, destino: true }));
+                }
+              }
             } catch {}
             setCepLoading(null);
           }, 500);
@@ -102,7 +127,7 @@ export function CotacaoPage() {
       if (cepTimers.current.origem) clearTimeout(cepTimers.current.origem);
       if (cepTimers.current.destino) clearTimeout(cepTimers.current.destino);
     };
-  }, [watch, setValue]);
+  }, [watch, setValue, getValues]);
 
   // Busca inicial no mount para CNPJ padrão 60701190000104 (Itaú) e para cred selecionado
   useEffect(() => {
@@ -110,7 +135,10 @@ export function CotacaoPage() {
       const cnpjRem = String(watch("cnpjRemetente") || "").replace(/\D/g, "");
       if (cnpjRem && cnpjRem.length === 14) {
         const cep = await lookupCepByCNPJ(cnpjRem).catch(() => null);
-        if (cep) setValue("cepOrigem", cep, { shouldValidate: true });
+        if (cep && !String(getValues("cepOrigem") || "").trim()) {
+          setValue("cepOrigem", cep, { shouldValidate: true });
+          setCepAuto((p) => ({ ...p, origem: true }));
+        }
       }
     };
     init();
@@ -133,7 +161,7 @@ export function CotacaoPage() {
   }, [totalVolumes, setValue]);
 
   const onSubmit = async (data: any) => {
-    if (!basic) { alert("Selecione uma credencial primeiro"); return; }
+    if (!basic) { toast.error("Selecione uma credencial primeiro."); return; }
     setLoading(true);
     try {
       const payload = { ...data, cnpjRemetente: String(data.cnpjRemetente).replace(/\D/g, ""), cnpjDestinatario: String(data.cnpjDestinatario).replace(/\D/g, ""), cepOrigem: String(data.cepOrigem).replace(/\D/g, ""), cepDestino: String(data.cepDestino).replace(/\D/g, "") };
@@ -165,34 +193,34 @@ export function CotacaoPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>CNPJ Remetente *</Label><Input {...register("cnpjRemetente")} placeholder="60701190000104" />
+                <Label htmlFor="cot-cnpj-remetente">CNPJ Remetente *</Label><Input id="cot-cnpj-remetente" {...register("cnpjRemetente", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} placeholder="60701190000104" />
                 {nomeRemetente && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeRemetente}</div>}
                 {errors.cnpjRemetente && <p className="text-xs text-red-600">{String(errors.cnpjRemetente.message)}</p>}
               </div>
               <div>
-                <Label>CNPJ Destinatário *</Label><Input {...register("cnpjDestinatario")} placeholder="CPF ou CNPJ" />
+                <Label htmlFor="cot-cnpj-destinatario">CNPJ Destinatário *</Label><Input id="cot-cnpj-destinatario" {...register("cnpjDestinatario")} placeholder="CPF ou CNPJ" />
                 {nomeDestinatario && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeDestinatario}</div>}
                 {errors.cnpjDestinatario && <p className="text-xs text-red-600">{String(errors.cnpjDestinatario.message)}</p>}
               </div>
             </div>
-            {watch("tipoFrete") === "3" && <div><Label>CNPJ Consignado *</Label><Input {...register("cnpjConsignado")} />{errors.cnpjConsignado && <p className="text-xs text-red-600">{String(errors.cnpjConsignado.message)}</p>}</div>}
+            {watch("tipoFrete") === "3" && <div><Label htmlFor="cot-cnpj-consignado">CNPJ Consignado *</Label><Input id="cot-cnpj-consignado" {...register("cnpjConsignado")} />{errors.cnpjConsignado && <p className="text-xs text-red-600">{String(errors.cnpjConsignado.message)}</p>}</div>}
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Modal</Label><select {...register("modal")} className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="R">Rodoviário (R)</option><option value="A">Aéreo (A)</option></select></div>
-              <div><Label>Tipo Frete</Label><select {...register("tipoFrete")} className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="1">1 - CIF</option><option value="2">2 - FOB</option><option value="3">3 - Consignado</option></select></div>
+              <div><Label htmlFor="cot-modal">Modal</Label><select id="cot-modal" {...register("modal")} className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="R">Rodoviário (R)</option><option value="A">Aéreo (A)</option></select></div>
+              <div><Label htmlFor="cot-tipo-frete">Tipo Frete</Label><select id="cot-tipo-frete" {...register("tipoFrete")} className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="1">1 - CIF</option><option value="2">2 - FOB</option><option value="3">3 - Consignado</option></select></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="flex items-center gap-1">CEP Origem * <span className="text-muted-foreground font-normal">auto via CNPJ</span> {cepLoading === "origem" && <Loader2 className="h-3 w-3 animate-spin text-primary" />}</Label>
+                <Label htmlFor="cot-cep-origem" className="flex items-center gap-1">CEP Origem * <span className="text-muted-foreground font-normal">auto via CNPJ</span> {cepLoading === "origem" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.origem && <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200">CEP via BrasilAPI</Badge>}</Label>
                 <div className="relative">
-                  <Input {...register("cepOrigem")} placeholder="02323000" className="pr-8" />
+                  <Input id="cot-cep-origem" {...register("cepOrigem", { onBlur: (e) => syncParam("cep", String(e.target.value).replace(/\D/g, "")) })} placeholder="02323000" className="pr-8" />
                   <MapPin className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
                 {errors.cepOrigem && <p className="text-xs text-red-600">{String(errors.cepOrigem.message)}</p>}
               </div>
               <div>
-                <Label className="flex items-center gap-1">CEP Destino * <span className="text-muted-foreground font-normal">auto se CNPJ</span> {cepLoading === "destino" && <Loader2 className="h-3 w-3 animate-spin text-primary" />}</Label>
+                <Label htmlFor="cot-cep-destino" className="flex items-center gap-1">CEP Destino * <span className="text-muted-foreground font-normal">auto se CNPJ</span> {cepLoading === "destino" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.destino && <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200">CEP via BrasilAPI</Badge>}</Label>
                 <div className="relative">
-                  <Input {...register("cepDestino")} placeholder="07093090" className="pr-8" />
+                  <Input id="cot-cep-destino" {...register("cepDestino")} placeholder="07093090" className="pr-8" />
                   <MapPin className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                   {watch("cnpjDestinatario")?.replace(/\D/g,"").length === 11 && <span className="absolute right-8 top-2 text-[10px] bg-muted px-1 rounded">CPF manual</span>}
                 </div>
@@ -200,11 +228,11 @@ export function CotacaoPage() {
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>Vlr Mercadoria *</Label><Input type="number" step="0.01" {...register("vlrMercadoria")} />{errors.vlrMercadoria && <p className="text-xs text-red-600">{String(errors.vlrMercadoria.message)}</p>}</div>
-              <div><Label>Peso *</Label><Input type="number" step="0.01" {...register("peso")} />{errors.peso && <p className="text-xs text-red-600">{String(errors.peso.message)}</p>}</div>
+              <div><Label htmlFor="cot-vlr">Vlr Mercadoria *</Label><Input id="cot-vlr" type="number" step="0.01" {...register("vlrMercadoria")} />{errors.vlrMercadoria && <p className="text-xs text-red-600">{String(errors.vlrMercadoria.message)}</p>}</div>
+              <div><Label htmlFor="cot-peso">Peso *</Label><Input id="cot-peso" type="number" step="0.01" {...register("peso")} />{errors.peso && <p className="text-xs text-red-600">{String(errors.peso.message)}</p>}</div>
               <div>
-                <Label className="flex items-center gap-1">Volumes * <span className="text-muted-foreground font-normal">(soma cubagem)</span></Label>
-                <Input type="number" value={totalVolumes} readOnly className="bg-muted font-medium" tabIndex={-1} />
+                <Label htmlFor="cot-volumes" className="flex items-center gap-1">Volumes * <span className="text-muted-foreground font-normal">(soma cubagem)</span></Label>
+                <Input id="cot-volumes" type="number" value={totalVolumes} readOnly className="bg-muted font-medium" tabIndex={-1} />
                 <input type="hidden" {...register("volumes")} />
                 {errors.volumes && <p className="text-xs text-red-600">{String(errors.volumes.message)}</p>}
                 <p className="text-[11px] text-muted-foreground mt-1">Automático = soma de cubagem.volumes ({cubagemValues.length} item{cubagemValues.length!==1?"s":""})</p>
@@ -215,18 +243,18 @@ export function CotacaoPage() {
               <div className="flex justify-between items-center"><Label>Cubagem (metros)</Label><Button type="button" variant="outline" size="sm" onClick={() => append({ comprimento: 0.5, largura: 0.5, altura: 0.5, volumes: 1 })}><Plus className="h-4 w-4 mr-1" />Add</Button></div>
               {fields.map((f, i) => (
                 <div key={f.id} className="grid grid-cols-5 gap-2 items-end border p-2 rounded-lg bg-muted/20">
-                  <div><Label className="text-xs">Comp.</Label><Input type="number" step="0.01" {...register(`cubagem.${i}.comprimento`)} /></div>
-                  <div><Label className="text-xs">Larg.</Label><Input type="number" step="0.01" {...register(`cubagem.${i}.largura`)} /></div>
-                  <div><Label className="text-xs">Alt.</Label><Input type="number" step="0.01" {...register(`cubagem.${i}.altura`)} /></div>
-                  <div><Label className="text-xs">Vols</Label><Input type="number" {...register(`cubagem.${i}.volumes`)} /></div>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => remove(i)}><Trash2 className="h-4 w-4" /></Button>
+                  <div><Label htmlFor={`cot-cub-${i}-comp`} className="text-xs">Comp.</Label><Input id={`cot-cub-${i}-comp`} type="number" step="0.01" {...register(`cubagem.${i}.comprimento`)} /></div>
+                  <div><Label htmlFor={`cot-cub-${i}-larg`} className="text-xs">Larg.</Label><Input id={`cot-cub-${i}-larg`} type="number" step="0.01" {...register(`cubagem.${i}.largura`)} /></div>
+                  <div><Label htmlFor={`cot-cub-${i}-alt`} className="text-xs">Alt.</Label><Input id={`cot-cub-${i}-alt`} type="number" step="0.01" {...register(`cubagem.${i}.altura`)} /></div>
+                  <div><Label htmlFor={`cot-cub-${i}-vols`} className="text-xs">Vols</Label><Input id={`cot-cub-${i}-vols`} type="number" {...register(`cubagem.${i}.volumes`)} /></div>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => remove(i)} aria-label={`Remover cubagem ${i + 1}`}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
             </div>
 
             <div className="flex gap-2 items-center">
-              <Label>Retorno:</Label>
-              <select value={returnType} onChange={(e) => setReturnType(e.target.value as any)} className="h-9 rounded-md border border-input bg-background text-foreground px-3 text-sm focus:ring-1 focus:ring-ring"><option value="json">json</option><option value="xml">xml</option></select>
+              <Label htmlFor="cot-retorno">Retorno:</Label>
+              <select id="cot-retorno" value={returnType} onChange={(e) => setReturnType(e.target.value as any)} className="h-9 rounded-md border border-input bg-background text-foreground px-3 text-sm focus:ring-1 focus:ring-ring"><option value="json">json</option><option value="xml">xml</option></select>
               <span className="text-xs text-muted-foreground">json: cards + viewer • xml: normalizado + raw</span>
             </div>
 

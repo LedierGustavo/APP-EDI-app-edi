@@ -63,7 +63,7 @@ export function CredencialSoapSelector({ value, onSelect }: Props) {
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar CNPJ ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+            <Input aria-label="Buscar CNPJ ou Razão Social" placeholder="Buscar CNPJ ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
           </div>
           <Button variant="outline" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-2" />Recarregar</Button>
           <CreateTokenSoapDialog onCreated={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["credenciais_soap"] }); }} defaultCnpj={selected} />
@@ -77,7 +77,14 @@ export function CredencialSoapSelector({ value, onSelect }: Props) {
             const cnpj = normalizeCNPJ(c.cnpj);
             const nome = nomesMap?.get(cnpj);
             return (
-              <button key={c.cnpj} onClick={() => onSelect(cnpj)} className={`w-full text-left px-3 py-2 hover:bg-accent flex flex-col gap-0.5 ${selected === cnpj ? "bg-primary/10" : ""}`}>
+              <div
+                key={c.cnpj}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect(cnpj)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(cnpj); } }}
+                className={`w-full text-left px-3 py-2 hover:bg-accent flex flex-col gap-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === cnpj ? "bg-primary/10" : ""}`}
+              >
                 <span className="flex items-center justify-between w-full">
                   <span className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-muted-foreground" />{c.cnpj}</span>
                   <span className="text-xs text-muted-foreground">{c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}</span>
@@ -88,6 +95,7 @@ export function CredencialSoapSelector({ value, onSelect }: Props) {
                     <span className="text-primary font-medium truncate">{nome}</span>
                   ) : (
                     <button
+                      type="button"
                       onClick={(e) => handleFetchNome(e, cnpj)}
                       disabled={fetchingCnpj === cnpj}
                       className="italic text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
@@ -101,7 +109,7 @@ export function CredencialSoapSelector({ value, onSelect }: Props) {
                     </button>
                   )}
                 </span>
-              </button>
+              </div>
             );
           })}
           {data?.data.length === 0 && !isLoading && <div className="p-4 text-sm text-muted-foreground text-center">Nenhuma credencial SOAP encontrada</div>}

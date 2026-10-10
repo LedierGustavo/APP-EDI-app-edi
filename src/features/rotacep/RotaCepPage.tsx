@@ -1,14 +1,17 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/ui/PasswordField";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { JsonViewer } from "@/components/ui/json-viewer";
-import { Search, MapPin, CheckCircle2, XCircle, Building2, Eye, EyeOff } from "lucide-react";
+import { Search, MapPin, CheckCircle2, XCircle, Building2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchClienteNome } from "@/lib/clienteCache";
 import { fetchEtiquetaByCnpj, upsertEtiqueta } from "@/lib/credenciaisEtiquetas";
@@ -40,12 +43,21 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 export function RotaCepPage() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [showSenha, setShowSenha] = useState(false);
   const [editingSenha, setEditingSenha] = useState(false);
   const [senhaEdit, setSenhaEdit] = useState("");
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const form = useForm({ resolver: zodResolver(cepSchema), defaultValues: { cep: "", cnpj: "" } });
+  const syncParam = (key: string, value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
+  const form = useForm({ resolver: zodResolver(cepSchema), defaultValues: { cep: searchParams.get("cep") || "", cnpj: searchParams.get("cnpj") || "" } });
   const cnpjWatch = form.watch("cnpj") || "";
 
   const { data: nomeCnpj } = useQuery({ queryKey: ["cliente_cache", cnpjWatch], queryFn: () => fetchClienteNome(cnpjWatch), enabled: cnpjWatch.replace(/\D/g, "").length === 14, staleTime: 5 * 60 * 1000 });
@@ -53,6 +65,7 @@ export function RotaCepPage() {
 
   const handleSelectCredencial = (cnpj: string) => {
     form.setValue("cnpj", cnpj, { shouldValidate: true, shouldDirty: true });
+    syncParam("cnpj", cnpj);
     setEditingSenha(false);
     setSenhaEdit("");
   };
@@ -65,8 +78,9 @@ export function RotaCepPage() {
   const handleSaveSenha = async () => {
     if (!etiqueta) return;
     const res = await upsertEtiqueta(cnpjWatch, senhaEdit, etiqueta.codigo_cliente || "");
-    if (res.error) alert(res.error);
+    if (res.error) toast.error(res.error);
     else {
+      toast.success("Senha salva com sucesso.");
       setEditingSenha(false);
       setSenhaEdit("");
       queryClient.invalidateQueries({ queryKey: ["credenciais_etiquetas"] });
@@ -121,20 +135,16 @@ export function RotaCepPage() {
                 <code className="flex-1 text-sm bg-muted px-2 py-1.5 rounded border block truncate">{etiqueta.codigo_cliente || "—"}</code>
               </div>
               <div>
-                <Label className="text-xs flex items-center gap-2">
-                  Senha
-                  {!editingSenha && <button type="button" onClick={() => setShowSenha(!showSenha)} className="text-muted-foreground hover:text-foreground">
-                    {showSenha ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  </button>}
-                </Label>
+                <Label htmlFor="rc-senha" className="text-xs">Senha</Label>
                 <div className="flex gap-2">
-                  <Input
-                    type={showSenha ? "text" : "password"}
+                  <PasswordField
+                    id="rc-senha"
                     value={editingSenha ? senhaEdit : (etiqueta.senha || "")}
                     onChange={(e) => setSenhaEdit(e.target.value)}
                     disabled={!editingSenha}
                     placeholder="••••••••"
                     className="font-mono"
+                    containerClassName="flex-1"
                   />
                   {!editingSenha ? (
                     <Button type="button" variant="outline" onClick={handleEditSenha}>Editar</Button>
@@ -142,7 +152,7 @@ export function RotaCepPage() {
                     <Button type="button" onClick={handleSaveSenha}>Salvar</Button>
                   )}
                 </div>
-                {!editingSenha && <div className="text-[11px] text-muted-foreground mt-1">Criptografada no banco • descriptografada via Rust</div>}
+                {!editingSenha && <div className="text-[11px] text-muted-foreground mt-1">Criptografada no banco • descriptografada via cofre (Electron)</div>}
               </div>
             </div>
           </CardContent>
@@ -158,14 +168,15 @@ export function RotaCepPage() {
           <form onSubmit={form.handleSubmit(onConsulta)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
               <div>
-                <Label>CNPJ Cliente *</Label>
-                <Input {...form.register("cnpj")} placeholder="04896434000504" />
+                <Label htmlFor="rc-cnpj">CNPJ Cliente *</Label>
+                <Input id="rc-cnpj" {...form.register("cnpj", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} placeholder="04896434000504" />
                 {nomeCnpj && <div className="text-xs text-primary mt-1">{nomeCnpj}</div>}
                 {form.formState.errors.cnpj && <p className="text-xs text-red-600">{String(form.formState.errors.cnpj.message)}</p>}
               </div>
               <div>
-                <Label>CEP *</Label>
+                <Label htmlFor="rc-cep">CEP *</Label>
                 <Input
+                  id="rc-cep"
                   {...form.register("cep")}
                   placeholder="00000-000"
                   maxLength={9}
@@ -173,6 +184,7 @@ export function RotaCepPage() {
                     const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
                     const masked = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
                     form.setValue("cep", masked, { shouldValidate: true, shouldDirty: true });
+                    syncParam("cep", digits);
                   }}
                 />
                 {form.formState.errors.cep && <p className="text-xs text-red-600">{String(form.formState.errors.cep.message)}</p>}
