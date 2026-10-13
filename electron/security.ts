@@ -20,6 +20,12 @@ const VAULT_FILE = "secure_keys.enc";
 // que não lê .env, garantindo que a URL esteja sempre disponível.
 const DEFAULT_SUPABASE_URL = "https://ynunxrvepaokkafxhzda.supabase.co";
 
+// Chaves embutidas para o app empacotado funcionar em qualquer PC sem
+// configuração de variáveis de ambiente ou cofre local.
+const EMBEDDED_SERVICE_ROLE =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InludW54cnZlcGFva2thZnhoemRhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjE0NjMyMSwiZXhwIjoyMDk3NzIyMzIxfQ.EGbbgfwNL3Ghh3K3lMj91Qej3TxGLa1qK3yJL4Ffjns";
+const EMBEDDED_FERNET_SECRET = "RG4JmpnfFj+V0FTbZWIXHVzP/5Vyk2AcNO3VZax27j4=";
+
 class SecurityVaultImpl {
   supabaseUrl = "";
   serviceRoleKey = "";
@@ -37,8 +43,10 @@ class SecurityVaultImpl {
     let secrets = this.load();
 
     if (!secrets) {
-      const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-      const fernetSecret = process.env.SECRET_KEY || "";
+      const serviceRole =
+        process.env.SUPABASE_SERVICE_ROLE_KEY || EMBEDDED_SERVICE_ROLE;
+      const fernetSecret =
+        process.env.SECRET_KEY || EMBEDDED_FERNET_SECRET;
       if (serviceRole && fernetSecret) {
         secrets = { serviceRole, fernetSecret, supabaseUrl: envUrl || undefined };
         this.persist(secrets);
