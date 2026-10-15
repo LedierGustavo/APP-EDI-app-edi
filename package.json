@@ -73,39 +73,38 @@
     }
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.9.1",
     "@supabase/supabase-js": "^2.117.3",
+    "electron-updater": "^6.8.9",
+    "fast-xml-parser": "^5.11.2"
+  },
+  "devDependencies": {
+    "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.104.1",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "autoprefixer": "^10.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "electron-updater": "^6.8.9",
-    "fast-xml-parser": "^5.11.2",
-    "fernet": "^0.3.3",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "lucide-react": "^1.54.0",
+    "oxlint": "^1.81.0",
+    "postcss": "^8.5.29",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.89.0",
     "react-router-dom": "^7.18.4",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
-    "zod": "^4.6.5",
-    "zustand": "^5.0.15"
-  },
-  "devDependencies": {
-    "@types/node": "^24.13.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "autoprefixer": "^10.6.1",
-    "concurrently": "^10.0.6",
-    "cross-env": "^10.1.0",
-    "electron": "^44.7.0",
-    "electron-builder": "^26.15.3",
-    "oxlint": "^1.81.0",
-    "postcss": "^8.5.29",
     "tailwindcss": "^3.4.17",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
-    "wait-on": "^9.5.1"
+    "wait-on": "^9.5.1",
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
   }
 }
