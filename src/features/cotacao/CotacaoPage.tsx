@@ -18,6 +18,8 @@ import { lookupCepByCNPJ, type CnpjLookupError } from "@/lib/cnpj";
 import { fetchClienteNome } from "@/lib/clienteCache";
 import { useQuery } from "@tanstack/react-query";
 
+const CEP_UNAVAILABLE_MESSAGE = "A consulta de CNPJ falhou temporariamente. Verifique a conexão e tente novamente.";
+
 // Mensagem transparente conforme o motivo da falha vindo do cofre/API.
 function cepLookupMessage(error: CnpjLookupError | undefined, cnpj: string): string {
   switch (error) {
@@ -50,7 +52,7 @@ export function CotacaoPage() {
     }, { replace: true });
   };
 
-  const { register, control, handleSubmit, watch, setValue, formState: { errors } } = useForm<any>({
+  const { register, control, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<any>({
     resolver: zodResolver(cotacaoSchema),
     defaultValues: {
       cnpjRemetente: searchParams.get("cnpj") || "60701190000104",
@@ -77,6 +79,7 @@ export function CotacaoPage() {
   // normalização e toast. Preenche sempre que o CNPJ muda, exceto se o usuário
   // editar o campo de CEP manualmente depois (aí o valor manual prevalece).
   const [cepLoading, setCepLoading] = useState<"origem" | "destino" | null>(null);
+  const [cepError, setCepError] = useState<{ origem: string | null; destino: string | null }>({ origem: null, destino: null });
   const [cepAuto, setCepAuto] = useState({ origem: false, destino: false });
   const cepManual = useRef<{ origem: boolean; destino: boolean }>({ origem: false, destino: false });
   const cepAutoValue = useRef<{ origem: string; destino: string }>({ origem: "", destino: "" });
@@ -92,6 +95,7 @@ export function CotacaoPage() {
       const ctrl = new AbortController();
       cepAbort.current[side] = ctrl;
       setCepLoading(side);
+      setCepError((p) => ({ ...p, [side]: null }));
       const field = side === "origem" ? "cepOrigem" : "cepDestino";
       cepTimers.current[side] = setTimeout(async () => {
         try {
@@ -101,11 +105,15 @@ export function CotacaoPage() {
             setValue(field, result.cep, { shouldValidate: true, shouldDirty: true });
             setCepAuto((p) => ({ ...p, [side]: true }));
           } else if (!result.cep) {
-            toast.warning(cepLookupMessage(result.error, cnpj));
+            if (result.error === "timeout") {
+              setCepError((p) => ({ ...p, [side]: CEP_UNAVAILABLE_MESSAGE }));
+            } else {
+              toast.warning(cepLookupMessage(result.error, cnpj));
+            }
           }
         } catch (e: any) {
           if (e?.name !== "AbortError") {
-            toast.error(`Falha ao buscar CEP do CNPJ ${cnpj}: ${e?.message ?? "erro"}`);
+            setCepError((p) => ({ ...p, [side]: CEP_UNAVAILABLE_MESSAGE }));
           }
         } finally {
           setCepLoading((cur) => (cur === side ? null : cur));
@@ -113,6 +121,15 @@ export function CotacaoPage() {
       }, 500);
     },
     [setValue],
+  );
+
+  const retryAutoCep = useCallback(
+    (side: "origem" | "destino") => {
+      const raw = getValues(side === "origem" ? "cnpjRemetente" : "cnpjDestinatario");
+      const digits = String(raw ?? "").replace(/\D/g, "");
+      if (digits.length === 14) scheduleAutoCep(side, digits);
+    },
+    [getValues, scheduleAutoCep],
   );
 
   useEffect(() => {
@@ -225,6 +242,12 @@ export function CotacaoPage() {
                   <MapPin className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
                 {errors.cepOrigem && <p className="text-xs text-red-600">{String(errors.cepOrigem.message)}</p>}
+                {cepError.origem && (
+                  <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                    <span>{cepError.origem}</span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => retryAutoCep("origem")}>Tentar Novamente</Button>
+                  </div>
+                )}
               </div>
               <div>
                 <Label htmlFor="cot-cep-destino" className="flex items-center gap-1">CEP Destino * <span className="text-muted-foreground font-normal">auto se CNPJ</span> {cepLoading === "destino" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.destino && <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200">CEP via BrasilAPI</Badge>}</Label>
@@ -234,6 +257,12 @@ export function CotacaoPage() {
                   {watch("cnpjDestinatario")?.replace(/\D/g,"").length === 11 && <span className="absolute right-8 top-2 text-[10px] bg-muted px-1 rounded">CPF manual</span>}
                 </div>
                 {errors.cepDestino && <p className="text-xs text-red-600">{String(errors.cepDestino.message)}</p>}
+                {cepError.destino && (
+                  <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                    <span>{cepError.destino}</span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => retryAutoCep("destino")}>Tentar Novamente</Button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">

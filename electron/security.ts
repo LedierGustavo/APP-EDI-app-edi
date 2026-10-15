@@ -23,6 +23,9 @@ class SecurityVaultImpl {
 
   initialize(): void {
     if (this.initialized) return;
+    if (!/^https:\/\/[^\s/]+/.test(this.supabaseUrl)) {
+      throw new Error(`URL do Supabase inválida (precisa começar com https://): ${this.supabaseUrl}`);
+    }
     this.supabase = createClient(this.supabaseUrl, this.serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });

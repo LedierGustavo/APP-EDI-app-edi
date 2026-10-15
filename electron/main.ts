@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
 import path from "path";
 import { autoUpdater } from "electron-updater";
 import { SecurityVault } from "./security";
@@ -52,6 +52,22 @@ type DetailResult<T> = IpcOk<T> | IpcErr | VaultNotice;
 
 function err(e: unknown): IpcErr {
   return { ok: false, error: e instanceof Error ? e.message : String(e) };
+}
+
+// Registra um handler IPC com try/catch global: exceções nunca chegam sem
+// tratamento ao renderer; viram { ok: false, success: false, error }.
+type IpcListener = (event: IpcMainInvokeEvent, ...args: any[]) => unknown;
+
+function handle(channel: string, listener: IpcListener): void {
+  ipcMain.handle(channel, async (event, ...args) => {
+    try {
+      return await listener(event, ...args);
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      console.error(`[ipc:${channel}]`, error);
+      return { ok: false, success: false, error, errorCode: "INTERNAL", status: 0, data: { message: error } };
+    }
+  });
 }
 
 function vaultGuard(): VaultNotice | null {
@@ -117,7 +133,7 @@ function createWindow() {
 
 function registerCredenciaisLegado() {
   // Lista sem a coluna `senha`.
-  ipcMain.handle("listar-credenciais", async (_e, args): Promise<ListResult<unknown[]>> => {
+  handle("listar-credenciais", async (_e, args): Promise<ListResult<unknown[]>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -151,7 +167,7 @@ function registerCredenciaisLegado() {
   });
 
   // Detalhe com senha descriptografada no main.
-  ipcMain.handle("obter-credencial", async (_e, usuarioRaw): Promise<DetailResult<unknown>> => {
+  handle("obter-credencial", async (_e, usuarioRaw): Promise<DetailResult<unknown>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -175,7 +191,7 @@ function registerCredenciaisLegado() {
   });
 
   // Cria credencial criptografando no main (nunca grava texto puro).
-  ipcMain.handle("criar-credencial", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
+  handle("criar-credencial", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -198,7 +214,7 @@ function registerCredenciaisLegado() {
 }
 
 function registerEtiquetas() {
-  ipcMain.handle("listar-etiquetas", async (_e, args): Promise<ListResult<unknown[]>> => {
+  handle("listar-etiquetas", async (_e, args): Promise<ListResult<unknown[]>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -234,7 +250,7 @@ function registerEtiquetas() {
     }
   });
 
-  ipcMain.handle("obter-etiqueta", async (_e, args): Promise<DetailResult<unknown>> => {
+  handle("obter-etiqueta", async (_e, args): Promise<DetailResult<unknown>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -258,7 +274,7 @@ function registerEtiquetas() {
     }
   });
 
-  ipcMain.handle("upsert-etiqueta", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
+  handle("upsert-etiqueta", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -280,7 +296,7 @@ function registerEtiquetas() {
 }
 
 function registerSoap() {
-  ipcMain.handle("listar-soap", async (_e, args): Promise<ListResult<unknown[]>> => {
+  handle("listar-soap", async (_e, args): Promise<ListResult<unknown[]>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -316,7 +332,7 @@ function registerSoap() {
     }
   });
 
-  ipcMain.handle("obter-token", async (_e, args): Promise<DetailResult<unknown>> => {
+  handle("obter-token", async (_e, args): Promise<DetailResult<unknown>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -340,7 +356,7 @@ function registerSoap() {
     }
   });
 
-  ipcMain.handle("upsert-token", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
+  handle("upsert-token", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -361,7 +377,7 @@ function registerSoap() {
 }
 
 function registerClienteCache() {
-  ipcMain.handle("obter-cliente-nome", async (_e, args): Promise<ListResult<string | null>> => {
+  handle("obter-cliente-nome", async (_e, args): Promise<ListResult<string | null>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -379,7 +395,7 @@ function registerClienteCache() {
     }
   });
 
-  ipcMain.handle("listar-cliente-nomes", async (_e, args): Promise<ListResult<Record<string, string | null>>> => {
+  handle("listar-cliente-nomes", async (_e, args): Promise<ListResult<Record<string, string | null>>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -401,7 +417,7 @@ function registerClienteCache() {
     }
   });
 
-  ipcMain.handle("upsert-cliente-cache", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
+  handle("upsert-cliente-cache", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -419,7 +435,7 @@ function registerClienteCache() {
     }
   });
 
-  ipcMain.handle("buscar-cnpjs-por-nome", async (_e, args): Promise<ListResult<string[]>> => {
+  handle("buscar-cnpjs-por-nome", async (_e, args): Promise<ListResult<string[]>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
@@ -495,7 +511,7 @@ async function lookupCnpjWs(digits: string): Promise<SourceOutcome> {
 function registerIntegracoes() {
   // Lookup CNPJ -> CEP/nome (BrasilAPI + publica.cnpj.ws) e upsert do nome no cache.
   // Retorna status tipado para a UI diferenciar "não existe", "cota estourada" e "timeout".
-  ipcMain.handle("lookup-cnpj", async (_e, cnpjRaw): Promise<CnpjLookupResponse> => {
+  handle("lookup-cnpj", async (_e, cnpjRaw): Promise<CnpjLookupResponse> => {
     const digits = digitsOnly(cnpjRaw);
     if (digits.length !== 14) return { ok: false, error_type: "invalid" };
 
@@ -521,7 +537,7 @@ function registerIntegracoes() {
   });
 
   // Cotação
-  ipcMain.handle("call-cotacao", async (_e, args) => {
+  handle("call-cotacao", async (_e, args) => {
     try {
       const { basic, payload, returnType } = args as {
         basic: string;
@@ -579,7 +595,7 @@ function registerIntegracoes() {
   });
 
   // Tracking v3
-  ipcMain.handle("call-tracking", async (_e, args) => {
+  handle("call-tracking", async (_e, args) => {
     try {
       const { basic, cnpj, valor, tipo, returnType } = args as {
         basic: string;
@@ -609,7 +625,7 @@ function registerIntegracoes() {
   });
 
   // SOAP (envelope montado com escape XML)
-  ipcMain.handle("call-tracking-soap", async (_e, args) => {
+  handle("call-tracking-soap", async (_e, args) => {
     try {
       const p = (args ?? {}) as Record<string, string>;
       const soapEnvelope = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:con="http://xmlns.oracle.com/Braspress_Datapress/consultaLoteMultiplasOcorrenciasBraspress/consultaLoteMultiplasOcorrenciasBraspress">
@@ -648,7 +664,7 @@ function registerIntegracoes() {
   });
 
   // RotaCep - resolve a senha via cofre e usa HTTPS.
-  ipcMain.handle("call-rota-cep", async (_e, args) => {
+  handle("call-rota-cep", async (_e, args) => {
     const guard = vaultGuard();
     if (guard) return { status: 0, ok: false, data: { message: guard.error } };
     try {
@@ -706,7 +722,7 @@ function setupAutoUpdater() {
   autoUpdater.on("update-downloaded", () => win?.webContents.send("update-downloaded"));
   autoUpdater.on("error", (e) => console.error("[autoUpdater] erro:", e?.message || e));
 
-  ipcMain.handle("check-for-updates", async () => {
+  handle("check-for-updates", async () => {
     if (!app.isPackaged) return { available: false, dev: true };
     try {
       const res = await autoUpdater.checkForUpdates();
@@ -715,7 +731,7 @@ function setupAutoUpdater() {
       return { available: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
-  ipcMain.handle("restart-to-update", () => {
+  handle("restart-to-update", () => {
     autoUpdater.quitAndInstall();
   });
 

@@ -76,12 +76,18 @@ async function lookupViaElectron(cnpj: string): Promise<CnpjLookupResult> {
   const api = getApi();
   if (!api) return fail("timeout");
 
-  const res = await api.lookupCnpj(cnpj);
-  if (!res.ok) {
-    if (res.error_type === "not_found") {
+  let res: Awaited<ReturnType<typeof api.lookupCnpj>>;
+  try {
+    res = await api.lookupCnpj(cnpj);
+  } catch {
+    return fail("timeout");
+  }
+  if (!res || !res.ok) {
+    const errorType = res && !res.ok ? res.error_type : "timeout";
+    if (errorType === "not_found") {
       negative.set(cnpj, { error: "not_found", ts: Date.now() });
     }
-    return fail(res.error_type);
+    return fail(errorType);
   }
   const cepDigits = res.data.cep ? res.data.cep.replace(/\D/g, "") : "";
   const cep = cepDigits.length === 8 ? cepDigits : null;
