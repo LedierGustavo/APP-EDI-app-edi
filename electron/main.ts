@@ -644,7 +644,7 @@ function registerIntegracoes() {
   </soapenv:Body>
 </soapenv:Envelope>`;
       const res = await net.fetch(
-        "https://soa.braspress.com.br/soa-infra/services/dataPress/consultaLoteMultiplasOcorrenciasBraspress/consultalotemultiplasocorrenciasbraspress_client_ep",
+        "http://soa.braspress.com.br:80/soa-infra/services/dataPress/consultaLoteMultiplasOcorrenciasBraspress/consultalotemultiplasocorrenciasbraspress_client_ep",
         {
           method: "POST",
           headers: { "Content-Type": "text/xml; charset=utf-8", SOAPAction: "consultaLoteMultiplasOcorrenciasBraspress" },
