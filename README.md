@@ -2,16 +2,16 @@
 
 App desktop moderno para teste da API Braspress em **produção** (sem menção Braspress por regra da empresa). Suporta **Cotação**, **Tracking v3 (byNf / byNumPedido)**, **SOAP (lote múltiplas ocorrências)** e **RotaCep**, tema claro/escuro e roteamento com `HashRouter` (suporta refresh).
 
-## Arquitetura de segurança (cofre)
+## Arquitetura de segurança (chaves embutidas)
 
 O renderer (Vite/React) **não conhece nenhuma chave** e **não fala com o Supabase**. Todo acesso a dados sensíveis e às APIs Braspress passa pelo **main process** do Electron via IPC:
 
-- `SUPABASE_SERVICE_ROLE_KEY` e `SECRET_KEY` são lidas do **ambiente do sistema** na primeira execução e persistidas criptografadas via `safeStorage` (DPAPI no Windows) em `userData/secure_keys.enc`.
-- A partir daí o app não precisa mais das variáveis de ambiente — o cofre reabre sozinho.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (e a chave interna do Fernet) ficam **embutidas no binário** no momento do build (equivalente à macro `env!()` do Rust), definidas em `electron/security.ts`. Não há cofre (`safeStorage`), `.env` ou variáveis de ambiente do SO.
+- O app é 100% autônomo: funciona em qualquer computador da equipe sem configuração extra.
 - As senhas/tokens no Supabase são **Fernet** (`sha256(SECRET_KEY)` -> AES-128-CBC + HMAC-SHA256), descriptografadas apenas no main. Ver `electron/crypto.ts` e `electron/security.ts`.
 - RLS **trancado**: nenhuma policy para `anon`/`authenticated`; só a `service_role` (bypass de RLS) lê/escreve. Ver `supabase/migrations/20261010_lockdown_credentials.sql`.
 
-> NUNCA versione valores reais de `service_role`/`SECRET_KEY`. Este repo não contém chaves.
+> NUNCA versione valores reais de `service_role` no repositório público. Este app é de uso interno.
 
 ## Stack
 - Electron + Vite + React 19 + TypeScript + Tailwind + shadcn/ui
@@ -24,23 +24,9 @@ O renderer (Vite/React) **não conhece nenhuma chave** e **não fala com o Supab
 npm install
 ```
 
-Em **desenvolvimento**, coloque os segredos no `.env` da raiz — o Electron carrega esse arquivo automaticamente quando **não empacotado**:
+As chaves do Supabase ficam embutidas no backend no momento do build (ver `electron/security.ts`). **Não é necessário** `.env`, variáveis de ambiente do SO nem cofre (`safeStorage`).
 
-```dotenv
-SUPABASE_URL=https://SEU-PROJETO.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<service_role>
-SECRET_KEY=<chave Fernet>
-```
-
-Em **produção** (app empacotado) o `.env` **não** é lido; defina as variáveis no SO (ex.: `setx`) ou deixe o cofre persistir via `safeStorage`:
-
-```powershell
-$env:SUPABASE_SERVICE_ROLE_KEY = "<service_role>"
-$env:SECRET_KEY                = "<chave Fernet>"
-npm run dev
-```
-
-Em execuções seguintes no app empacotado não é preciso repetir as variáveis (o cofre já persistiu).
+Para apontar para outro projeto Supabase, altere as constantes em `electron/security.ts` antes de `npm run build`.
 
 ### Scripts de desenvolvimento
 - `npm run dev` — sobe o Vite **e** o Electron juntos (HMR). É o modo com acesso ao cofre (a lista de credenciais funciona).
@@ -102,6 +88,6 @@ npm run dist               # instalador (electron-builder -> release/)
 ```
 
 ## Notas
-- Electron exigido (sem Rust/Tauri por limitação do ambiente).
+- As chaves são embutidas no build, sem Rust/Tauri nem cofre, garantindo execução autônoma.
 - Tema claro/escuro persiste em `localStorage`.
 - Auto-update via GitHub Releases (`electron-updater`).

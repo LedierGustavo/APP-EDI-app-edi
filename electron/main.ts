@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
-import fs from "fs";
 import { autoUpdater } from "electron-updater";
 import { SecurityVault } from "./security";
 import { resolvePassword, encryptFernet } from "./crypto";
@@ -52,10 +51,12 @@ function err(e: unknown): IpcErr {
 }
 
 function vaultGuard(): VaultNotice | null {
+  // Com as chaves embutidas no binário o backend está sempre pronto.
+  // Mantido apenas por compatibilidade com os handlers IPC existentes.
   if (!SecurityVault.isReady()) {
     return {
       ok: false,
-      error: "Cofre não inicializado: verifique SUPABASE_SERVICE_ROLE_KEY e SECRET_KEY.",
+      error: "Backend não inicializado.",
       errorCode: "VAULT_NOT_READY",
     };
   }
@@ -728,42 +729,13 @@ function setupAutoUpdater() {
 // Bootstrap
 // ---------------------------------------------------------------------------
 
-// Em desenvolvimento (não empacotado) carrega o .env da raiz para process.env,
-// sem sobrescrever o que já existe no SO. No app empacotado os segredos vêm
-// apenas do ambiente da máquina / cofre (safeStorage).
-function loadDevEnv() {
-  if (app.isPackaged) return;
-  try {
-    const envPath = path.join(__dirname, "..", ".env");
-    if (!fs.existsSync(envPath)) return;
-    for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
-      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
-      if (!m) continue;
-      let val = m[2].trim();
-      if (
-        (val.startsWith('"') && val.endsWith('"')) ||
-        (val.startsWith("'") && val.endsWith("'"))
-      ) {
-        val = val.slice(1, -1);
-      }
-      if (process.env[m[1]] === undefined && val !== "") process.env[m[1]] = val;
-    }
-    if (!process.env.SUPABASE_URL && process.env.VITE_SUPABASE_URL) {
-      process.env.SUPABASE_URL = process.env.VITE_SUPABASE_URL;
-    }
-  } catch (e) {
-    console.error("[env] falha ao carregar .env:", (e as Error).message);
-  }
-}
-
 app.whenReady().then(() => {
-  loadDevEnv();
-
+  // Chaves embutidas no binário: backend sempre pronto, sem .env/cofre/env SO.
   try {
     SecurityVault.initialize();
-    console.log("[vault] inicializado. persistido:", SecurityVault.isPersisted());
+    console.log("[backend] inicializado. chaves embutidas. persistido:", SecurityVault.isPersisted());
   } catch (e) {
-    console.error("[vault] NÃO inicializado:", e instanceof Error ? e.message : e);
+    console.error("[backend] inicializacao falhou:", e instanceof Error ? e.message : e);
   }
 
   registerCredenciaisLegado();

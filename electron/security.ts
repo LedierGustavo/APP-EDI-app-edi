@@ -1,69 +1,28 @@
-import { app, safeStorage } from "electron";
-import path from "path";
-import fs from "fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-// Cofre de segredos do main process.
-// - Na 1ª execução: lê SUPABASE_SERVICE_ROLE_KEY e SECRET_KEY do ambiente da
-//   máquina e persiste criptografado via safeStorage (DPAPI/Keychain/Secret
-//   Service). Nunca grava segredo em claro e nunca loga.
-// - Execuções seguintes: lê e descriptografa silenciosamente do userData.
-// - Se safeStorage não estiver disponível, usa o ambiente em memória (fallback)
-//   sem persistir, evitando quebrar o app.
-
-type Secrets = { serviceRole: string; fernetSecret: string; supabaseUrl?: string };
-
-const VAULT_FILE = "secure_keys.enc";
-
-// URL pública do projeto Supabase. NÃO é segredo (vai embutida no bundle do
-// renderer via VITE_SUPABASE_URL). Serve de fallback para o app empacotado,
-// que não lê .env, garantindo que a URL esteja sempre disponível.
-const DEFAULT_SUPABASE_URL = "https://ynunxrvepaokkafxhzda.supabase.co";
-
-// Chaves embutidas para o app empacotado funcionar em qualquer PC sem
-// configuração de variáveis de ambiente ou cofre local.
-const EMBEDDED_SERVICE_ROLE =
+// Chaves embutidas diretamente no binário (compiladas no .exe via build).
+// Não há cofre, .env, variáveis de ambiente do SO ou criptografia local:
+// o backend é 100% autônomo em qualquer computador da equipe.
+//
+// Equivalente (em Rust/Tauri) a:
+//   const SUPABASE_URL: &str = env!("SUPABASE_URL");
+//   const SUPABASE_SERVICE_ROLE_KEY: &str = env!("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_URL = "https://ynunxrvepaokkafxhzda.supabase.co";
+const SUPABASE_SERVICE_ROLE_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InludW54cnZlcGFva2thZnhoemRhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjE0NjMyMSwiZXhwIjoyMDk3NzIyMzIxfQ.EGbbgfwNL3Ghh3K3lMj91Qej3TxGLa1qK3yJL4Ffjns";
 const EMBEDDED_FERNET_SECRET = "RG4JmpnfFj+V0FTbZWIXHVzP/5Vyk2AcNO3VZax27j4=";
 
+// backend Supabase (service_role) — usado por todo o main process.
 class SecurityVaultImpl {
-  supabaseUrl = "";
-  serviceRoleKey = "";
-  fernetSecret = "";
+  supabaseUrl = SUPABASE_URL;
+  serviceRoleKey = SUPABASE_SERVICE_ROLE_KEY;
+  fernetSecret = EMBEDDED_FERNET_SECRET;
   supabase: SupabaseClient | null = null;
 
   private initialized = false;
-  private persisted = false;
 
   initialize(): void {
     if (this.initialized) return;
-
-    const envUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-
-    let secrets = this.load();
-
-    if (!secrets) {
-      const serviceRole =
-        process.env.SUPABASE_SERVICE_ROLE_KEY || EMBEDDED_SERVICE_ROLE;
-      const fernetSecret =
-        process.env.SECRET_KEY || EMBEDDED_FERNET_SECRET;
-      if (serviceRole && fernetSecret) {
-        secrets = { serviceRole, fernetSecret, supabaseUrl: envUrl || undefined };
-        this.persist(secrets);
-      }
-    }
-
-    if (!secrets) {
-      throw new Error(
-        "Chaves ausentes. Na primeira execução defina SUPABASE_SERVICE_ROLE_KEY e SECRET_KEY " +
-          "como variáveis de ambiente da máquina.",
-      );
-    }
-
-    this.supabaseUrl = secrets.supabaseUrl || envUrl || DEFAULT_SUPABASE_URL;
-
-    this.serviceRoleKey = secrets.serviceRole;
-    this.fernetSecret = secrets.fernetSecret;
     this.supabase = createClient(this.supabaseUrl, this.serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
@@ -74,45 +33,10 @@ class SecurityVaultImpl {
     return this.initialized && !!this.supabase;
   }
 
+  // Mantido por compatibilidade com o código existente: chaves embutidas
+  // estão sempre "persistidas" no binário.
   isPersisted(): boolean {
-    return this.persisted;
-  }
-
-  private vaultPath(): string {
-    return path.join(app.getPath("userData"), VAULT_FILE);
-  }
-
-  private load(): Secrets | null {
-    try {
-      if (!safeStorage.isEncryptionAvailable()) return null;
-      const p = this.vaultPath();
-      if (!fs.existsSync(p)) return null;
-      const decrypted = safeStorage.decryptString(fs.readFileSync(p));
-      const parsed = JSON.parse(decrypted) as Secrets;
-      if (parsed?.serviceRole && parsed?.fernetSecret) {
-        this.persisted = true;
-        return parsed;
-      }
-      return null;
-    } catch (e) {
-      console.error("[vault] falha ao ler cofre:", (e as Error).message);
-      return null;
-    }
-  }
-
-  private persist(secrets: Secrets): void {
-    try {
-      if (!safeStorage.isEncryptionAvailable()) {
-        console.warn(
-          "[vault] safeStorage indisponível; segredos ficarão apenas em memória (ambiente).",
-        );
-        return;
-      }
-      fs.writeFileSync(this.vaultPath(), safeStorage.encryptString(JSON.stringify(secrets)));
-      this.persisted = true;
-    } catch (e) {
-      console.error("[vault] falha ao gravar cofre:", (e as Error).message);
-    }
+    return true;
   }
 }
 
