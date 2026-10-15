@@ -1,3 +1,4 @@
+import { net } from "electron";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Chaves embutidas diretamente no binário (compiladas no .exe via build).
@@ -26,8 +27,11 @@ class SecurityVaultImpl {
     if (!/^https:\/\/[^\s/]+/.test(this.supabaseUrl)) {
       throw new Error(`URL do Supabase inválida (precisa começar com https://): ${this.supabaseUrl}`);
     }
+    // Transporte Chromium (net.fetch): usa a trust store do Windows, evitando
+    // "fetch failed / UNABLE_TO_VERIFY_LEAF_SIGNATURE" nas máquinas da equipe.
     this.supabase = createClient(this.supabaseUrl, this.serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: (input, init) => net.fetch(input as string, init as RequestInit) },
     });
     this.initialized = true;
   }

@@ -1,11 +1,7 @@
-import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, shell, type IpcMainInvokeEvent } from "electron";
 import path from "path";
 import { autoUpdater } from "electron-updater";
 import { SecurityVault } from "./security";
-
-// Usa a trust store do sistema operacional para HTTPS (Supabase), evitando
-// "fetch failed / UNABLE_TO_VERIFY_LEAF_SIGNATURE" em máquinas da equipe.
-process.env.NODE_USE_SYSTEM_CA = "1";
 import { resolvePassword, encryptFernet } from "./crypto";
 import { parseSoapResponse } from "./soapParser";
 
@@ -466,7 +462,7 @@ const CNPJ_LOOKUP_TIMEOUT_MS = 5000;
 
 async function lookupBrasilApi(digits: string): Promise<SourceOutcome> {
   try {
-    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`, {
+    const r = await net.fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`, {
       signal: AbortSignal.timeout(CNPJ_LOOKUP_TIMEOUT_MS),
     });
     if (r.status === 429) return { kind: "rate_limited" };
@@ -484,7 +480,7 @@ async function lookupBrasilApi(digits: string): Promise<SourceOutcome> {
 
 async function lookupCnpjWs(digits: string): Promise<SourceOutcome> {
   try {
-    const r = await fetch(`https://publica.cnpj.ws/cnpj/${digits}`, {
+    const r = await net.fetch(`https://publica.cnpj.ws/cnpj/${digits}`, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(CNPJ_LOOKUP_TIMEOUT_MS),
     });
@@ -545,7 +541,7 @@ function registerIntegracoes() {
         returnType?: string;
       };
       const rt = returnType === "xml" ? "xml" : "json";
-      const res = await fetch(`https://api.braspress.com/v1/cotacao/calcular/${rt}`, {
+      const res = await net.fetch(`https://api.braspress.com/v1/cotacao/calcular/${rt}`, {
         method: "POST",
         headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -610,7 +606,7 @@ function registerIntegracoes() {
         tipo === "byNf"
           ? `${base}/byNf/${cnpj}/${valor}/${rt}`
           : `${base}/byNumPedido/${cnpj}/${valor}/${rt}`;
-      const res = await fetch(url, { method: "GET", headers: { Authorization: `Basic ${basic}` } });
+      const res = await net.fetch(url, { method: "GET", headers: { Authorization: `Basic ${basic}` } });
       const text = await res.text();
       let data: unknown;
       try {
@@ -647,7 +643,7 @@ function registerIntegracoes() {
     </con:process>
   </soapenv:Body>
 </soapenv:Envelope>`;
-      const res = await fetch(
+      const res = await net.fetch(
         "https://soa.braspress.com.br/soa-infra/services/dataPress/consultaLoteMultiplasOcorrenciasBraspress/consultalotemultiplasocorrenciasbraspress_client_ep",
         {
           method: "POST",
@@ -681,7 +677,7 @@ function registerIntegracoes() {
       const senha = resolvePassword(getRaw((data as { senha: string }).senha), SecurityVault.fernetSecret);
       if (senha === null) return { status: 0, ok: false, data: { message: "Falha ao descriptografar a credencial." } };
       const basic = Buffer.from(`${(data as { cnpj: string }).cnpj}:${senha}`).toString("base64");
-      const res = await fetch("https://dataservices.braspress.com.br/dataservice/consultarotacep", {
+      const res = await net.fetch("https://dataservices.braspress.com.br/dataservice/consultarotacep", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Basic ${basic}` },
         body: JSON.stringify({ cep: digitsOnly(cep) }),
@@ -717,8 +713,52 @@ async function upsertClienteNomeSilent(cnpj: string, nome: string): Promise<void
 // Auto-update
 // ---------------------------------------------------------------------------
 
+// O build Portable não é instalado, então não consegue se atualizar sozinho:
+// ao detectar nova versão, avisa o usuário e oferece o link do .exe no GitHub.
+const IS_PORTABLE = !!process.env.PORTABLE_EXECUTABLE_DIR;
+const GITHUB_REPO = "LedierGustavo/APP-EDI-app-edi";
+let portableNotifiedVersion: string | null = null;
+
+async function findPortableDownloadUrl(version: string): Promise<string> {
+  const releasePage = `https://github.com/${GITHUB_REPO}/releases/tag/v${version}`;
+  try {
+    const r = await net.fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/tags/v${version}`, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return releasePage;
+    const j = (await r.json()) as { assets?: { name: string; browser_download_url: string }[] };
+    const asset = j.assets?.find((a) => /portable.*\.exe$/i.test(a.name));
+    return asset?.browser_download_url ?? releasePage;
+  } catch {
+    return releasePage;
+  }
+}
+
+async function notifyPortableUpdate(version: string): Promise<void> {
+  if (portableNotifiedVersion === version) return;
+  portableNotifiedVersion = version;
+  const url = await findPortableDownloadUrl(version);
+  const options = {
+    type: "info" as const,
+    title: "Atualização disponível",
+    message: `Nova versão ${version} disponível.`,
+    detail: `Você está usando a versão Portable. Baixe o novo .exe Portable e substitua o atual.\n\n${url}`,
+    buttons: ["Baixar Portable", "Depois"],
+    defaultId: 0,
+    cancelId: 1,
+  };
+  const { response } = win
+    ? await dialog.showMessageBox(win, options)
+    : await dialog.showMessageBox(options);
+  if (response === 0) await shell.openExternal(url);
+}
+
 function setupAutoUpdater() {
-  autoUpdater.on("update-available", () => win?.webContents.send("update-available"));
+  autoUpdater.on("update-available", (info) => {
+    if (IS_PORTABLE) void notifyPortableUpdate(info.version);
+    win?.webContents.send("update-available");
+  });
   autoUpdater.on("update-downloaded", () => win?.webContents.send("update-downloaded"));
   autoUpdater.on("error", (e) => console.error("[autoUpdater] erro:", e?.message || e));
 
@@ -736,9 +776,10 @@ function setupAutoUpdater() {
   });
 
   if (app.isPackaged) {
-    autoUpdater.autoDownload = true;
+    autoUpdater.autoDownload = !IS_PORTABLE;
     autoUpdater.autoInstallOnAppQuit = false;
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    if (IS_PORTABLE) autoUpdater.checkForUpdates().catch(() => {});
+    else autoUpdater.checkForUpdatesAndNotify().catch(() => {});
     setInterval(() => {
       autoUpdater.checkForUpdates().catch(() => {});
     }, 4 * 60 * 60 * 1000);
