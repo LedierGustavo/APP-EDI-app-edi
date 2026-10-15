@@ -2,6 +2,10 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { autoUpdater } from "electron-updater";
 import { SecurityVault } from "./security";
+
+// Usa a trust store do sistema operacional para HTTPS (Supabase), evitando
+// "fetch failed / UNABLE_TO_VERIFY_LEAF_SIGNATURE" em máquinas da equipe.
+process.env.NODE_USE_SYSTEM_CA = "1";
 import { resolvePassword, encryptFernet } from "./crypto";
 import { parseSoapResponse } from "./soapParser";
 
