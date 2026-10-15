@@ -121,7 +121,7 @@ function AppInner() {
             <Route path="*" element={<Navigate to="/cotacao" replace />} />
           </Routes>
         </ErrorBoundary>
-        <footer className="text-center text-xs text-muted-foreground pt-8 border-t">APP EDI • Produção • api.braspress.com • Tema claro/escuro • 700+ credenciais Supabase • Auto-update GitHub Releases</footer>
+        <footer className="text-center text-xs text-muted-foreground pt-8 border-t">APP EDI • Produção • Auto-update GitHub Releases</footer>
       </main>
     </div>
   );

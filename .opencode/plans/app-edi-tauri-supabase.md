@@ -1,11 +1,11 @@
-# Plano: APP EDI Desktop - Tauri v2 + Supabase + API Braspress v3
+# Plano: APP EDI Desktop - Tauri v2 + Supabase
 
 **Data:** 2026-10-09
 **Workspace:** `C:/Users/ledie/OneDrive/Documentos/APP-EDI`
 **Status:** Aprovado - Em execução
 
 ## 1. Contexto e Objetivo
-App desktop moderno **APP EDI** (sem menção Braspress por regra da empresa) para testar API Braspress em produção. Tela inicial puxa `usuario/senha` do Supabase (`public.credenciais`, 700+ linhas, mix texto puro / AES-256-GCM criptografado). Escopo: Cotação + Tracking v3 (byNf e byNumPedido). Temas claro/escuro.
+App desktop moderno **APP EDI** para testar em produção. Tela inicial puxa `usuario/senha` do Supabase (`public.credenciais`, 700+ linhas, mix texto puro / AES-256-GCM criptografado). Escopo: Cotação + Tracking v3 (byNf e byNumPedido). Temas claro/escuro.
 
 Documentação base: https://api.braspress.com/home
 - Auth: `Authorization: Basic base64(user:pass)`

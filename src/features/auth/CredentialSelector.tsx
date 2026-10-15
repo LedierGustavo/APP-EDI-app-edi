@@ -81,7 +81,7 @@ export function CredentialSelector() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary" /> Credenciais (Supabase)</CardTitle>
         <CardDescription>
-          700+ usuários de <code>public.credenciais</code>. Senhas híbridas (texto puro / AES-256-GCM). {data?.count ? `${data.count} encontrados` : ""}
+          {data?.count ? `${data.count} encontrados` : ""}
           {cred && <span className="ml-2 text-primary font-medium">Selecionado: {cred.usuario}</span>}
         </CardDescription>
       </CardHeader>

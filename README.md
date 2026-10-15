@@ -1,10 +1,10 @@
 # APP EDI - Desktop (Electron + Vite + React)
 
-App desktop moderno para teste da API Braspress em **produção** (sem menção Braspress por regra da empresa). Suporta **Cotação**, **Tracking v3 (byNf / byNumPedido)**, **SOAP (lote múltiplas ocorrências)** e **RotaCep**, tema claro/escuro e roteamento com `HashRouter` (suporta refresh).
+App desktop moderno para teste das API em **produção** Suporta **Cotação**, **Tracking v3 (byNf / byNumPedido)**, **SOAP (lote múltiplas ocorrências)** e **RotaCep**, tema claro/escuro e roteamento com `HashRouter` (suporta refresh).
 
 ## Arquitetura de segurança (chaves embutidas)
 
-O renderer (Vite/React) **não conhece nenhuma chave** e **não fala com o Supabase**. Todo acesso a dados sensíveis e às APIs Braspress passa pelo **main process** do Electron via IPC:
+O renderer (Vite/React) **não conhece nenhuma chave** e **não fala com o Supabase**. Todo acesso a dados sensíveis e às APIs passa pelo **main process** do Electron via IPC:
 
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (e a chave interna do Fernet) ficam **embutidas no binário** no momento do build (equivalente à macro `env!()` do Rust), definidas em `electron/security.ts`. Não há cofre (`safeStorage`), `.env` ou variáveis de ambiente do SO.
 - O app é 100% autônomo: funciona em qualquer computador da equipe sem configuração extra.
@@ -60,7 +60,7 @@ Cole o conteúdo de `supabase/migrations/20261010_lockdown_credentials.sql` no S
 ## Estrutura
 ```
 src/
-  lib/ipc.ts (ponte IPC tipada), braspress.ts, validators.ts, cnpj.ts
+  lib/ipc.ts (ponte IPC tipada), validators.ts, cnpj.ts
   features/auth/CredentialSelector.tsx
   features/cotacao/CotacaoPage.tsx
   features/tracking/TrackingPage.tsx
@@ -69,13 +69,13 @@ src/
   components/ErrorBoundary.tsx, ui/PasswordField.tsx, ui/*
   store/authStore.ts
 electron/
-  main.ts (IPCs, cofre, proxy Braspress)
+  main.ts
   preload.ts (expõe window.api)
   security.ts (SecurityVault: safeStorage + service_role)
   crypto.ts (Fernet), soapParser.ts
 ```
 
-## API Braspress
+## API da nossa empresa
 - Cotação: `POST /v1/cotacao/calcular/json` (payload conforme doc, cubagem em metros)
 - Tracking v3: `GET /v3/tracking/byNf/{cnpj}/{notaFiscal}/json` e `byNumPedido/{cnpj}/{numPedido}/json`
 - Auth: `Authorization: Basic base64(usuario:senha)` montado no main após resolver a senha no cofre

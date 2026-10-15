@@ -214,7 +214,7 @@ export function CotacaoPage() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Cotação de Frete</CardTitle><CardDescription>Teste de cálculo com autenticação Basic • CEP auto via CNPJ (BrasilAPI)</CardDescription></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Cotação de Frete</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -236,7 +236,7 @@ export function CotacaoPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="cot-cep-origem" className="flex items-center gap-1">CEP Origem * <span className="text-muted-foreground font-normal">auto via CNPJ</span> {cepLoading === "origem" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.origem && <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200">CEP via BrasilAPI</Badge>}</Label>
+                <Label htmlFor="cot-cep-origem" className="flex items-center gap-1">CEP Origem * <span className="text-muted-foreground font-normal">auto via CNPJ</span> {cepLoading === "origem" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.origem}</Label>
                 <div className="relative">
                   <Input id="cot-cep-origem" {...register("cepOrigem", { onBlur: (e) => syncParam("cep", String(e.target.value).replace(/\D/g, "")) })} placeholder="02323000" className="pr-8" />
                   <MapPin className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -250,7 +250,7 @@ export function CotacaoPage() {
                 )}
               </div>
               <div>
-                <Label htmlFor="cot-cep-destino" className="flex items-center gap-1">CEP Destino * <span className="text-muted-foreground font-normal">auto se CNPJ</span> {cepLoading === "destino" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.destino && <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200">CEP via BrasilAPI</Badge>}</Label>
+                <Label htmlFor="cot-cep-destino" className="flex items-center gap-1">CEP Destino * {cepLoading === "destino" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.destino}</Label>
                 <div className="relative">
                   <Input id="cot-cep-destino" {...register("cepDestino")} placeholder="07093090" className="pr-8" />
                   <MapPin className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />

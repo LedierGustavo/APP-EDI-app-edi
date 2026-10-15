@@ -4,7 +4,7 @@
   "version": "1.0.16",
   "type": "module",
   "main": "dist-electron/main.js",
-  "description": "APP EDI - Teste de API Braspress",
+  "description": "APP EDI - Teste de API",
   "author": "APP EDI",
   "repository": {
     "type": "git",
