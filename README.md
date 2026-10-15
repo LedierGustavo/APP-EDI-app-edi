@@ -81,10 +81,21 @@ electron/
 - Auth: `Authorization: Basic base64(usuario:senha)` montado no main após resolver a senha no cofre
 - O main faz `fetch` direto (sem CORS); o renderer chama `window.api.callCotacao/callTracking/callTrackingSoap/callRotaCep`
 
+## Distribuição (formato padrão: NSIS per-user)
+
+O formato oficial para a equipe é o **instalador NSIS per-user** (`APP EDI Setup x.y.z.exe`):
+
+- Não exige privilégio de Administrador (`perMachine: false`, `allowElevation: false`).
+- Instala em `%LOCALAPPDATA%\Programs\APP EDI` e abre em cerca de 1 s.
+- Atualiza automaticamente pelo GitHub Releases (`electron-updater`).
+
+O **Portable** (`APP EDI-Portable-x.y.z.exe`) é apenas alternativa pontual para máquinas onde o instalador é bloqueado. Ele extrai os arquivos em `%TEMP%` a cada execução, por isso abre mais devagar.
+
 ## Build
 ```bash
 npm run build:electron     # tsc (electron) + vite build -> dist/ e dist-electron/
-npm run dist               # instalador (electron-builder -> release/)
+npm run dist               # instalador NSIS + Portable (electron-builder -> release/)
+npm run build:portable     # somente o Portable
 ```
 
 ## Notas
