@@ -1,7 +1,7 @@
 {
   "name": "app-edi",
   "private": true,
-  "version": "1.0.15",
+  "version": "1.0.16",
   "type": "module",
   "main": "dist-electron/main.js",
   "description": "APP EDI - Teste de API Braspress",
@@ -18,8 +18,9 @@
     "build": "tsc -b && vite build",
     "build:main": "tsc -p tsconfig.electron.json && node scripts/electron-cjs.mjs",
     "build:electron": "npm run build:main && vite build",
-    "dist": "npm run build:electron && electron-builder --win --publish never",
+    "dist": "npm run build:electron && electron-builder --win --publish never && node scripts/make-zip.mjs",
     "build:portable": "npm run build:electron && electron-builder --win portable --publish never",
+    "build:zip": "npm run build:electron && electron-builder --win zip --publish never && node scripts/make-zip.mjs",
     "release": "npm run build:electron && electron-builder --win --publish always",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -47,6 +48,12 @@
         },
         {
           "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "x64"
           ]
