@@ -48,7 +48,7 @@ export function CreateCredentialDialog({ onCreated }: { onCreated?: () => void }
         getApi()?.lookupCnpj(cnpj).catch(() => {});
       }
 
-      setMsg({ type: "success", text: "Credencial criada com sucesso (criptografada no cofre Electron)!" });
+      setMsg({ type: "success", text: "Credencial criada com sucesso." });
       reset();
       onCreated?.();
       setTimeout(() => setOpen(false), 1200);
@@ -74,20 +74,19 @@ export function CreateCredentialDialog({ onCreated }: { onCreated?: () => void }
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <Label htmlFor="cc-usuario">Usuário * <span className="text-muted-foreground font-normal">CNPJ_SUFIXO</span></Label>
-              <Input id="cc-usuario" autoFocus {...register("usuario")} placeholder="60701190000104_PRD" />
+              <Label htmlFor="cc-usuario">Usuário *</Label>
+              <Input id="cc-usuario" autoFocus {...register("usuario")} />
               {errors.usuario && <p className="text-xs text-red-600 mt-1">{errors.usuario.message}</p>}
             </div>
             <div>
               <Label htmlFor="cc-senha">Senha *</Label>
-              <PasswordField id="cc-senha" {...register("senha")} placeholder="••••••••" />
+              <PasswordField id="cc-senha" {...register("senha")} />
               {errors.senha && <p className="text-xs text-red-600 mt-1">{errors.senha.message}</p>}
-              <p className="text-[11px] text-muted-foreground mt-1">Será criptografada no cofre (Electron) antes de salvar no Supabase</p>
             </div>
             {msg && <div className={`text-xs p-2 rounded border ${msg.type === "success" ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/20" : "bg-red-50 border-red-200 text-red-600"}`}>{msg.text}</div>}
             <div className="flex gap-2 justify-end">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Salvar criptografado"}</Button>
+              <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Salvar"}</Button>
             </div>
           </form>
         </CardContent>

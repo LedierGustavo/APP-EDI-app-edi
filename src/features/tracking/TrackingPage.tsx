@@ -12,17 +12,27 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { JsonViewer } from "@/components/ui/json-viewer";
-import { Search, Package, Clock, AlertTriangle, MapPin, Truck, CheckCircle2, XCircle, ArrowRight, PackageCheck, Building2 } from "lucide-react";
+import { Search, Package, Clock, AlertTriangle, MapPin, Truck, CheckCircle2, XCircle, ArrowRight, PackageCheck, Building2, CalendarDays, CircleDollarSign } from "lucide-react";
 import { fetchClienteNome } from "@/lib/clienteCache";
 import { useQuery } from "@tanstack/react-query";
 
 function statusVariant(status: string) {
   const s = status?.toLowerCase() || "";
-  if (s.includes("entreg")) return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200";
+  if (s.includes("entreg") || s.includes("finaliz")) return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200";
   if (s.includes("transito") || s.includes("trânsito") || s.includes("em trans")) return "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200";
   if (s.includes("colet")) return "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200";
   if (s.includes("extrav") || s.includes("ocorr")) return "bg-red-500/10 text-red-700 dark:text-red-300 border-red-200";
   return "bg-primary/10 text-primary border-primary/20";
+}
+
+function formatCurrency(value: unknown) {
+  if (value === null || value === undefined || value === "") return "—";
+  const amount = Number(value);
+  return Number.isFinite(amount) ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount) : String(value);
+}
+
+function displayValue(value: unknown) {
+  return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
 export function TrackingPage() {
@@ -90,36 +100,34 @@ export function TrackingPage() {
 
         <TabsContent value="byNf">
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Tracking por Nota Fiscal</CardTitle><CardDescription>Busca por NF nos últimos 90 dias (grupo econômico v3)</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Tracking por Nota Fiscal</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={formNf.handleSubmit((d) => onSearch("byNf", d.cnpj, d.notaFiscal))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div>
-                  <Label htmlFor="trk-nf-cnpj">CNPJ Tomador *</Label><Input id="trk-nf-cnpj" {...formNf.register("cnpj")} placeholder="12345678912345" />
+                  <Label htmlFor="trk-nf-cnpj">CNPJ Tomador *</Label><Input id="trk-nf-cnpj" {...formNf.register("cnpj")} />
                   {nomeNf && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeNf}</div>}
                   {formNf.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formNf.formState.errors.cnpj.message)}</p>}
                 </div>
-                <div><Label htmlFor="trk-nf-nota">Nota Fiscal *</Label><Input id="trk-nf-nota" {...formNf.register("notaFiscal")} placeholder="12345" />{formNf.formState.errors.notaFiscal && <p className="text-xs text-red-600">{String(formNf.formState.errors.notaFiscal.message)}</p>}</div>
+                <div><Label htmlFor="trk-nf-nota">Nota Fiscal *</Label><Input id="trk-nf-nota" {...formNf.register("notaFiscal")} />{formNf.formState.errors.notaFiscal && <p className="text-xs text-red-600">{String(formNf.formState.errors.notaFiscal.message)}</p>}</div>
                 <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
-              <p className="text-xs text-muted-foreground mt-2">GET /v3/tracking/byNf/{"{cnpj}"}/{"{notaFiscal}"}/json</p>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="byNumPedido">
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-primary" /> Tracking por Nº Pedido</CardTitle><CardDescription>Busca por número do pedido (v3)</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-primary" /> Tracking por Nº Pedido</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={formPedido.handleSubmit((d) => onSearch("byNumPedido", d.cnpj, d.numPedido))} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div>
-                  <Label htmlFor="trk-ped-cnpj">CNPJ Tomador *</Label><Input id="trk-ped-cnpj" {...formPedido.register("cnpj")} placeholder="12345678912345" />
+                  <Label htmlFor="trk-ped-cnpj">CNPJ Tomador *</Label><Input id="trk-ped-cnpj" {...formPedido.register("cnpj")} />
                   {nomePedido && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomePedido}</div>}
                   {formPedido.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formPedido.formState.errors.cnpj.message)}</p>}
                 </div>
-                <div><Label htmlFor="trk-ped-num">Nº Pedido *</Label><Input id="trk-ped-num" {...formPedido.register("numPedido")} placeholder="PED123" />{formPedido.formState.errors.numPedido && <p className="text-xs text-red-600">{String(formPedido.formState.errors.numPedido.message)}</p>}</div>
+                <div><Label htmlFor="trk-ped-num">Nº Pedido *</Label><Input id="trk-ped-num" {...formPedido.register("numPedido")} />{formPedido.formState.errors.numPedido && <p className="text-xs text-red-600">{String(formPedido.formState.errors.numPedido.message)}</p>}</div>
                 <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
-              <p className="text-xs text-muted-foreground mt-2">GET /v3/tracking/byNumPedido/{"{cnpj}"}/{"{numPedido}"}/json</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -148,62 +156,83 @@ export function TrackingPage() {
                   <TabsTrigger value="json">JSON</TabsTrigger>
                 </TabsList>
                 <TabsContent value="visual" className="space-y-4 mt-4">
-                  {result.data.conhecimentos.map((c: any, idx: number) => (
+                  {result.data.conhecimentos.map((c: any, idx: number) => {
+                    const timeline = c.timeLine ?? c.timeline ?? [];
+                    const notasFiscais = c.notasFiscais ?? [];
+                    const status = c.statusEntrega || c.status;
+                    const origem = [c.cidadeColeta || c.origem, c.ufColeta].filter(Boolean).join("/");
+                    const destino = [c.cidade || c.destino, c.uf].filter(Boolean).join("/");
+                    return (
                     <div key={idx} className="border rounded-xl overflow-hidden shadow-sm bg-card">
-                      <div className="px-4 py-3 bg-muted/20 border-b flex flex-wrap gap-2 items-center justify-between">
-                        <span className="font-mono font-bold flex items-center gap-2"><Truck className="h-4 w-4 text-primary" />AWB {c.numero}</span>
-                        <Badge className={statusVariant(c.status)}>{c.status}</Badge>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{c.origem} <ArrowRight className="h-3 w-3" /> {c.cidade}/{c.uf}</span>
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/20 px-4 py-3">
+                        <span className="flex items-center gap-2 font-mono font-bold"><Truck className="h-4 w-4 text-primary" />AWB {displayValue(c.numero)}</span>
+                        <Badge className={statusVariant(status)}>{displayValue(status)}</Badge>
+                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><MapPin className="h-3.5 w-3.5 text-primary" />{displayValue(origem)} <ArrowRight className="h-3 w-3" /> {displayValue(destino)}</span>
                       </div>
-                      <div className="p-4 space-y-3">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Remetente</div><div className="text-xs font-medium truncate">{c.remetente}</div></div>
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Destinatário</div><div className="text-xs font-medium truncate">{c.destinatario}</div></div>
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground flex items-center gap-1"><Package className="h-3 w-3" />Volumes / Peso</div><div className="text-xs font-medium">{c.volumes} • {c.peso}kg</div></div>
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Frete</div><div className="text-xs font-bold">R$ {c.totalFrete}</div></div>
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Previsão</div><div className="text-xs">{c.previsaoEntrega}</div></div>
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Entrega</div><div className="text-xs">{c.dataEntrega || "-"}</div></div>
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Última ocorrência</div><div className="text-xs truncate">{c.ultimaOcorrencia}</div></div>
-                          <div className="p-2 rounded-lg border bg-muted/20"><div className="text-[11px] text-muted-foreground">Data</div><div className="text-xs">{c.dataOcorrencia}</div></div>
+                      <div className="space-y-3 p-4">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="rounded-lg border bg-muted/20 p-2.5"><div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Previsão de entrega</div><div className="mt-1 text-sm font-semibold">{displayValue(c.previsaoEntrega)}</div></div>
+                          <div className="rounded-lg border bg-muted/20 p-2.5"><div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Entrega realizada</div><div className="mt-1 text-sm font-semibold">{displayValue(c.dataEntrega)}</div></div>
+                          <div className="rounded-lg border bg-muted/20 p-2.5"><div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Package className="h-3.5 w-3.5" />Volumes / peso</div><div className="mt-1 text-sm font-semibold">{displayValue(c.volumes)} <span className="text-muted-foreground">•</span> {displayValue(c.peso)} kg</div></div>
+                          <div className="rounded-lg border bg-muted/20 p-2.5"><div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDollarSign className="h-3.5 w-3.5" />Frete</div><div className="mt-1 text-sm font-semibold">{formatCurrency(c.totalFrete)}</div></div>
                         </div>
 
-                        {c.timeline && c.timeline.length > 0 && (
+                        {c.ultimaOcorrencia && (
+                          <div className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-amber-300/60 bg-amber-500/10 px-3 py-2.5">
+                            <div className="flex min-w-0 items-start gap-2">
+                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-medium text-amber-800 dark:text-amber-200">Última ocorrência</div>
+                                <div className="text-sm font-semibold">{c.ultimaOcorrencia}</div>
+                              </div>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{displayValue(c.dataOcorrencia)}</span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                          <div className="flex min-w-0 items-start gap-2 rounded-lg border px-3 py-2">
+                            <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0"><span className="text-muted-foreground">Remetente</span><div className="font-medium">{displayValue(c.remetente)}</div></div>
+                          </div>
+                          <div className="flex min-w-0 items-start gap-2 rounded-lg border px-3 py-2">
+                            <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0"><span className="text-muted-foreground">Destinatário</span><div className="font-medium">{displayValue(c.destinatario)}</div></div>
+                          </div>
+                        </div>
+
+                        {timeline.length > 0 && (
                           <div className="rounded-lg border bg-card p-3">
-                            <div className="font-medium text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Timeline</div>
-                            <div className="mt-3 relative pl-6 space-y-3">
-                              <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-primary/10 rounded" />
-                              {c.timeline.map((t: any, i: number) => (
-                                <div key={i} className="relative flex gap-3">
-                                  <div className={`absolute -left-5 top-1 w-2.5 h-2.5 rounded-full ring-4 ${i === 0 ? "bg-primary ring-primary/20" : "bg-muted-foreground/40 ring-muted/20"}`} />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-medium">{t.descricao}</div>
-                                    <div className="text-xs text-muted-foreground">{t.data}</div>
-                                  </div>
+                            <div className="flex items-center gap-2 text-sm font-medium"><Clock className="h-4 w-4 text-primary" />Histórico de movimentações</div>
+                            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                              {timeline.map((t: any, i: number) => (
+                                <div key={`${t.data}-${i}`} className="rounded-md bg-muted/30 px-2.5 py-2">
+                                  <div className="text-xs font-medium">{displayValue(t.descricao)}</div>
+                                  <div className="mt-1 text-[11px] text-muted-foreground">{displayValue(t.data)}</div>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {c.ocorrencias && c.ocorrencias.length > 0 && (
-                          <div className="rounded-lg border border-amber-200 bg-amber-500/10 dark:bg-amber-950/20 p-3">
-                            <div className="text-sm font-medium flex items-center gap-2 text-amber-700 dark:text-amber-300"><AlertTriangle className="h-4 w-4" /> Ocorrências</div>
-                            <div className="mt-2 space-y-1">
-                              {c.ocorrencias.map((o: any, i: number) => <div key={i} className="text-xs"><span className="font-medium">{o.descricao}</span> <span className="text-muted-foreground">— {o.data}</span></div>)}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
+                          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                            <span>Emissão: <strong className="font-medium text-foreground">{displayValue(c.emissao)}</strong></span>
+                            <span>Valor mercantil: <strong className="font-medium text-foreground">{formatCurrency(c.valorMercantil)}</strong></span>
+                            {c.tipoFrete && <span>Frete: <strong className="font-medium text-foreground">{c.tipoFrete}</strong></span>}
+                          </div>
+                          {notasFiscais.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground"><PackageCheck className="h-3 w-3" />NF:</span>
+                              {notasFiscais.map((n: any, i: number) => <Badge key={i} className="border font-mono text-xs">{n.serie}-{n.numero}</Badge>)}
                             </div>
-                          </div>
-                        )}
-
-                        {c.notasFiscais?.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="text-xs text-muted-foreground mr-1 flex items-center gap-1"><PackageCheck className="h-3 w-3" />Notas:</span>
-                            {c.notasFiscais.map((n: any, i: number) => <Badge key={i} className="font-mono text-xs border">{n.serie}-{n.numero}</Badge>)}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                  {result.data.conhecimentos.length === 0 && <div className="text-sm text-muted-foreground text-center py-8 border rounded-xl bg-muted/20 flex flex-col items-center gap-2"><Package className="h-8 w-8 opacity-40" />Nenhum conhecimento encontrado (verifique período 90 dias)</div>}
+                    );
+                  })}
+                  {result.data.conhecimentos.length === 0 && <div className="text-sm text-muted-foreground text-center py-8 border rounded-xl bg-muted/20 flex flex-col items-center gap-2"><Package className="h-8 w-8 opacity-40" />Nenhum conhecimento encontrado</div>}
                 </TabsContent>
                 <TabsContent value="json" className="mt-4">
                   <JsonViewer data={result.data} title="Response JSON" />

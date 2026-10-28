@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordField } from "@/components/ui/PasswordField";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { JsonViewer } from "@/components/ui/json-viewer";
@@ -114,17 +114,19 @@ export function RotaCepPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <CredencialEtiquetasSelector value={cnpjWatch} onSelect={handleSelectCredencial} />
+    <div className="service-workspace rotacep-workspace">
+      <aside className="service-credentials min-w-0">
+        <CredencialEtiquetasSelector value={cnpjWatch} onSelect={handleSelectCredencial} />
+      </aside>
+      <section className="service-content min-w-0 space-y-4">
 
       {etiqueta && (
-        <Card>
-          <CardHeader>
+        <Card className="min-w-0">
+          <CardHeader className="p-4 pb-3">
             <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Credencial Selecionada</CardTitle>
-            <CardDescription>Detalhes da credencial de etiqueta em uso</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <CardContent className="space-y-3 p-4 pt-0">
+            <div className="fields-three grid grid-cols-1 gap-3">
               <div>
                 <Label className="text-xs">CNPJ</Label>
                 <code className="flex-1 font-mono text-sm bg-muted px-2 py-1.5 rounded border block truncate">{cnpjWatch}</code>
@@ -142,7 +144,6 @@ export function RotaCepPage() {
                     value={editingSenha ? senhaEdit : (etiqueta.senha || "")}
                     onChange={(e) => setSenhaEdit(e.target.value)}
                     disabled={!editingSenha}
-                    placeholder="••••••••"
                     className="font-mono"
                     containerClassName="flex-1"
                   />
@@ -152,24 +153,22 @@ export function RotaCepPage() {
                     <Button type="button" onClick={handleSaveSenha}>Salvar</Button>
                   )}
                 </div>
-                {!editingSenha && <div className="text-[11px] text-muted-foreground mt-1">Criptografada no banco • descriptografada via cofre (Electron)</div>}
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
+      <Card className="min-w-0">
+        <CardHeader className="p-4 pb-3">
           <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Consulta Rota por CEP</CardTitle>
-          <CardDescription>Consulta de rota logística via dataservices.braspress.com.br • Autenticação Basic via credenciais_etiquetas</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={form.handleSubmit(onConsulta)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <CardContent className="p-4 pt-0">
+          <form onSubmit={form.handleSubmit(onConsulta)} className="service-form space-y-3">
+            <div className="fields-three grid grid-cols-1 gap-3 items-end">
               <div>
                 <Label htmlFor="rc-cnpj">CNPJ Cliente *</Label>
-                <Input id="rc-cnpj" {...form.register("cnpj", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} placeholder="04896434000504" />
+                <Input id="rc-cnpj" {...form.register("cnpj", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, ""))})} />
                 {nomeCnpj && <div className="text-xs text-primary mt-1">{nomeCnpj}</div>}
                 {form.formState.errors.cnpj && <p className="text-xs text-red-600">{String(form.formState.errors.cnpj.message)}</p>}
               </div>
@@ -178,7 +177,6 @@ export function RotaCepPage() {
                 <Input
                   id="rc-cep"
                   {...form.register("cep")}
-                  placeholder="00000-000"
                   maxLength={9}
                   onChange={(e) => {
                     const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
@@ -202,15 +200,15 @@ export function RotaCepPage() {
       </Card>
 
       {result && (
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-3">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 pb-3">
             <CardTitle className="flex items-center gap-2">
               {result.ok ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
               Resultado RotaCep
               <Badge className={result.ok ? "bg-emerald-500/10 text-emerald-700 border-emerald-200" : "bg-red-500/10 text-red-700 border-red-200"}>{result.status}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 pt-0">
             <Tabs defaultValue="visual">
               <TabsList>
                 <TabsTrigger value="visual">Visual</TabsTrigger>
@@ -227,7 +225,7 @@ export function RotaCepPage() {
                         </Badge>
                         <span className="text-xs text-muted-foreground">CEP: {form.getValues("cep")}</span>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="fields-two grid grid-cols-1 gap-3">
                         <div className="border rounded-xl overflow-hidden shadow-sm bg-card">
                           <div className="px-4 py-3 bg-muted/20 border-b">
                             <span className="font-medium text-sm">Filial</span>
@@ -236,7 +234,7 @@ export function RotaCepPage() {
                             <div className="text-lg font-bold text-primary">
                               {parsed.idFilial ?? "—"} - {parsed.filial ?? "—"}
                             </div>
-                            <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div className="result-fields mt-3 grid grid-cols-1 gap-2">
                               <Field label="ID Filial" value={parsed.idFilial != null ? String(parsed.idFilial) : undefined} />
                               <Field label="Nome Filial" value={parsed.filial} />
                             </div>
@@ -250,7 +248,7 @@ export function RotaCepPage() {
                             <div className="text-lg font-bold text-primary">
                               {parsed.rota ?? "—"}
                             </div>
-                            <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div className="result-fields mt-3 grid grid-cols-1 gap-2">
                               <Field label="Código Rota" value={parsed.rota} />
                               <Field label="Descrição" value={parsed.descricaoRota} />
                             </div>
@@ -263,7 +261,7 @@ export function RotaCepPage() {
                             <span className="font-medium text-sm">Endereço</span>
                           </div>
                           <div className="p-4">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="address-fields grid grid-cols-1 gap-2">
                               <Field label="Endereço" value={parsed.endereco} />
                               <Field label="Bairro" value={parsed.bairro} />
                               <Field label="Cidade" value={parsed.cidade} />
@@ -287,6 +285,7 @@ export function RotaCepPage() {
           </CardContent>
         </Card>
       )}
+      </section>
     </div>
   );
 }

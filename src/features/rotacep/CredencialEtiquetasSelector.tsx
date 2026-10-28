@@ -6,8 +6,8 @@ import { lookupCepByCNPJ } from "@/lib/cnpj";
 import { normalizeCNPJ } from "@/lib/cnpj";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Search, RefreshCw, Shield, User, Building2, Download } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Search, RefreshCw, Shield, User, Building2, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { CreateEtiquetaDialog } from "@/features/rotacep/CreateEtiquetaDialog";
 
 type Props = {
@@ -20,6 +20,7 @@ export function CredencialEtiquetasSelector({ value, onSelect }: Props) {
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(0);
   const [fetchingCnpj, setFetchingCnpj] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(!value);
   const queryClient = useQueryClient();
   const pageSize = 50;
 
@@ -49,30 +50,36 @@ export function CredencialEtiquetasSelector({ value, onSelect }: Props) {
   };
 
   const selected = normalizeCNPJ(value ?? "");
+  const handleSelect = (cnpj: string) => {
+    setListOpen(false);
+    onSelect(cnpj);
+  };
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary" /> Credenciais Etiquetas</CardTitle>
-        <CardDescription>
-          Credenciais de <code>public.credenciais_etiquetas</code>. {data?.count != null ? `${data.count} encontrados` : ""}
-          {selected && <span className="ml-2 text-primary font-medium">Selecionado: {selected}</span>}
-        </CardDescription>
+      <CardHeader className="flex flex-col items-stretch gap-2 space-y-0 p-4 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base"><Shield className="h-4 w-4 text-primary" /> Credenciais Etiquetas</CardTitle>
+        <p className="truncate text-sm text-muted-foreground">{selected || (data?.count != null ? `${data.count} credenciais` : "")}</p>
+        <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setListOpen((open) => !open)} aria-expanded={listOpen}>
+          {listOpen ? <><ChevronUp className="mr-1.5 h-4 w-4" />Ocultar lista</> : <><ChevronDown className="mr-1.5 h-4 w-4" />Trocar credencial</>}
+        </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex gap-2">
+      <CardContent className="space-y-3 px-4 pb-4 pt-0">
+        {listOpen && <div className="space-y-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input aria-label="Buscar CNPJ ou Razão Social" placeholder="Buscar CNPJ ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
           </div>
-          <Button variant="outline" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-2" />Recarregar</Button>
-          <CreateEtiquetaDialog onCreated={() => refetch()} defaultCnpj={selected} />
-        </div>
+          <div className="grid grid-cols-1 gap-2">
+            <Button variant="outline" className="w-full" onClick={() => refetch()}><RefreshCw className="mr-1.5 h-4 w-4" />Recarregar</Button>
+            <CreateEtiquetaDialog onCreated={() => refetch()} defaultCnpj={selected} />
+          </div>
+        </div>}
 
         {error && <div className="text-sm text-red-600 p-3 border border-red-200 rounded bg-red-50">Erro: {(error as Error).message}</div>}
         {isLoading && <div className="text-sm text-muted-foreground">Carregando...</div>}
 
-        <div className="border rounded-lg max-h-[320px] overflow-auto scrollbar-thin divide-y">
+        {listOpen && <div className="credential-list border rounded-lg overflow-auto scrollbar-thin divide-y">
           {data?.data.map((c) => {
             const cnpj = normalizeCNPJ(c.cnpj);
             const nome = nomesMap?.get(cnpj);
@@ -81,8 +88,8 @@ export function CredencialEtiquetasSelector({ value, onSelect }: Props) {
                 key={c.cnpj}
                 role="button"
                 tabIndex={0}
-                onClick={() => onSelect(cnpj)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(cnpj); } }}
+                onClick={() => handleSelect(cnpj)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(cnpj); } }}
                 className={`w-full text-left px-3 py-2 hover:bg-accent flex flex-col gap-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === cnpj ? "bg-primary/10" : ""}`}
               >
                 <span className="flex items-center justify-between w-full">
@@ -99,12 +106,12 @@ export function CredencialEtiquetasSelector({ value, onSelect }: Props) {
                       onClick={(e) => handleFetchNome(e, cnpj)}
                       disabled={fetchingCnpj === cnpj}
                       className="italic text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
-                      title="Clique para buscar nome via BrasilAPI"
+                      title="Buscar nome"
                     >
                       {fetchingCnpj === cnpj ? (
                         <><span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" /> buscando...</>
                       ) : (
-                        <><Download className="h-3 w-3" /> sem nome no cache — clique para buscar</>
+                        <><Download className="h-3 w-3" /> Buscar nome</>
                       )}
                     </button>
                   )}
@@ -113,13 +120,13 @@ export function CredencialEtiquetasSelector({ value, onSelect }: Props) {
             );
           })}
           {data?.data.length === 0 && !isLoading && <div className="p-4 text-sm text-muted-foreground text-center">Nenhuma credencial de etiqueta encontrada</div>}
-        </div>
+        </div>}
 
-        <div className="flex justify-between items-center">
+        {listOpen && <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
           <span className="text-xs text-muted-foreground">Página {page + 1} • {data?.count ?? "?"} total</span>
           <Button variant="ghost" size="sm" disabled={(data?.data.length ?? 0) < pageSize} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
-        </div>
+        </div>}
       </CardContent>
     </Card>
   );

@@ -39,7 +39,7 @@ export function CreateTokenSoapDialog({ onCreated, defaultCnpj }: { onCreated?: 
     if (res.error) {
       setMsg({ type: "error", text: res.error });
     } else {
-      setMsg({ type: "success", text: "Token SOAP salvo (criptografado via Rust)!" });
+      setMsg({ type: "success", text: "Token SOAP salvo." });
       reset();
       onCreated?.();
       setTimeout(() => setOpen(false), 1000);
@@ -64,14 +64,13 @@ export function CreateTokenSoapDialog({ onCreated, defaultCnpj }: { onCreated?: 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <Label htmlFor="cts-cnpj">CNPJ *</Label>
-              <Input id="cts-cnpj" autoFocus {...register("cnpj")} placeholder="04896434000504" />
+              <Input id="cts-cnpj" autoFocus {...register("cnpj")} />
               {errors.cnpj && <p className="text-xs text-red-600 mt-1">{errors.cnpj.message}</p>}
             </div>
             <div>
               <Label htmlFor="cts-token">Token *</Label>
-              <PasswordField id="cts-token" {...register("token")} placeholder="@Alpar#123" />
+              <PasswordField id="cts-token" {...register("token")} />
               {errors.token && <p className="text-xs text-red-600 mt-1">{errors.token.message}</p>}
-              <p className="text-[11px] text-muted-foreground mt-1">Criptografado no cofre (Electron) antes do INSERT em credenciais_soap</p>
             </div>
             {msg && <div className={`text-xs p-2 rounded border ${msg.type === "success" ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>{msg.text}</div>}
             <div className="flex gap-2 justify-end">

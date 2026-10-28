@@ -212,19 +212,19 @@ export function CotacaoPage() {
   const isSuccess = result?.ok && result?.data && typeof result.data === "object" && "totalFrete" in result.data;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Cotação de Frete</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <div className="cotacao-workspace">
+      <Card className="min-w-0">
+        <CardHeader className="p-4 pb-3"><CardTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Cotação de Frete</CardTitle></CardHeader>
+        <CardContent className="p-4 pt-0">
+          <form onSubmit={handleSubmit(onSubmit)} className="cotacao-form space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="cot-cnpj-remetente">CNPJ Remetente *</Label><Input id="cot-cnpj-remetente" {...register("cnpjRemetente", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} placeholder="60701190000104" />
+                <Label htmlFor="cot-cnpj-remetente">CNPJ Remetente *</Label><Input id="cot-cnpj-remetente" {...register("cnpjRemetente", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} />
                 {nomeRemetente && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeRemetente}</div>}
                 {errors.cnpjRemetente && <p className="text-xs text-red-600">{String(errors.cnpjRemetente.message)}</p>}
               </div>
               <div>
-                <Label htmlFor="cot-cnpj-destinatario">CNPJ Destinatário *</Label><Input id="cot-cnpj-destinatario" {...register("cnpjDestinatario")} placeholder="CPF ou CNPJ" />
+                <Label htmlFor="cot-cnpj-destinatario">CNPJ Destinatário *</Label><Input id="cot-cnpj-destinatario" {...register("cnpjDestinatario")} />
                 {nomeDestinatario && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeDestinatario}</div>}
                 {errors.cnpjDestinatario && <p className="text-xs text-red-600">{String(errors.cnpjDestinatario.message)}</p>}
               </div>
@@ -236,9 +236,9 @@ export function CotacaoPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="cot-cep-origem" className="flex items-center gap-1">CEP Origem * <span className="text-muted-foreground font-normal">auto via CNPJ</span> {cepLoading === "origem" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.origem}</Label>
+                <Label htmlFor="cot-cep-origem" className="flex items-center gap-1">CEP Origem * {cepLoading === "origem" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.origem}</Label>
                 <div className="relative">
-                  <Input id="cot-cep-origem" {...register("cepOrigem", { onBlur: (e) => syncParam("cep", String(e.target.value).replace(/\D/g, "")) })} placeholder="02323000" className="pr-8" />
+                  <Input id="cot-cep-origem" {...register("cepOrigem", { onBlur: (e) => syncParam("cep", String(e.target.value).replace(/\D/g, "")) })} className="pr-8" />
                   <MapPin className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
                 {errors.cepOrigem && <p className="text-xs text-red-600">{String(errors.cepOrigem.message)}</p>}
@@ -252,9 +252,8 @@ export function CotacaoPage() {
               <div>
                 <Label htmlFor="cot-cep-destino" className="flex items-center gap-1">CEP Destino * {cepLoading === "destino" && <Loader2 className="h-3 w-3 animate-spin text-primary" />} {cepAuto.destino}</Label>
                 <div className="relative">
-                  <Input id="cot-cep-destino" {...register("cepDestino")} placeholder="07093090" className="pr-8" />
+                  <Input id="cot-cep-destino" {...register("cepDestino")} className="pr-8" />
                   <MapPin className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  {watch("cnpjDestinatario")?.replace(/\D/g,"").length === 11 && <span className="absolute right-8 top-2 text-[10px] bg-muted px-1 rounded">CPF manual</span>}
                 </div>
                 {errors.cepDestino && <p className="text-xs text-red-600">{String(errors.cepDestino.message)}</p>}
                 {cepError.destino && (
@@ -269,11 +268,10 @@ export function CotacaoPage() {
               <div><Label htmlFor="cot-vlr">Vlr Mercadoria *</Label><Input id="cot-vlr" type="number" step="0.01" {...register("vlrMercadoria")} />{errors.vlrMercadoria && <p className="text-xs text-red-600">{String(errors.vlrMercadoria.message)}</p>}</div>
               <div><Label htmlFor="cot-peso">Peso *</Label><Input id="cot-peso" type="number" step="0.01" {...register("peso")} />{errors.peso && <p className="text-xs text-red-600">{String(errors.peso.message)}</p>}</div>
               <div>
-                <Label htmlFor="cot-volumes" className="flex items-center gap-1">Volumes * <span className="text-muted-foreground font-normal">(soma cubagem)</span></Label>
+                <Label htmlFor="cot-volumes">Volumes *</Label>
                 <Input id="cot-volumes" type="number" value={totalVolumes} readOnly className="bg-muted font-medium" tabIndex={-1} />
                 <input type="hidden" {...register("volumes")} />
                 {errors.volumes && <p className="text-xs text-red-600">{String(errors.volumes.message)}</p>}
-                <p className="text-[11px] text-muted-foreground mt-1">Automático = soma de cubagem.volumes ({cubagemValues.length} item{cubagemValues.length!==1?"s":""})</p>
               </div>
             </div>
 
@@ -293,7 +291,6 @@ export function CotacaoPage() {
             <div className="flex gap-2 items-center">
               <Label htmlFor="cot-retorno">Retorno:</Label>
               <select id="cot-retorno" value={returnType} onChange={(e) => setReturnType(e.target.value as any)} className="h-9 rounded-md border border-input bg-background text-foreground px-3 text-sm focus:ring-1 focus:ring-ring"><option value="json">json</option><option value="xml">xml</option></select>
-              <span className="text-xs text-muted-foreground">json: cards + viewer • xml: normalizado + raw</span>
             </div>
 
             <Button type="submit" disabled={loading} className="w-full">{loading ? "Calculando..." : "Calcular Frete"}</Button>
@@ -302,18 +299,18 @@ export function CotacaoPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Preview Payload</CardTitle><CardDescription>Body que será enviado à API</CardDescription></CardHeader>
-          <CardContent className="space-y-2">
+      <div className="cotacao-preview min-w-0 space-y-4">
+        <Card className="min-w-0">
+          <CardHeader className="p-4 pb-3"><CardTitle className="text-sm">Preview Payload</CardTitle></CardHeader>
+          <CardContent className="space-y-2 p-4 pt-0">
             <JsonViewer data={values} title="JSON Payload" defaultCollapsed={false} />
             <Button variant="outline" size="sm" onClick={() => { if (!basic) return; const payload = values as any; navigator.clipboard.writeText(buildCurlCotacao(basic, payload, returnType)); }}><Copy className="h-4 w-4 mr-1" />Copiar cURL</Button>
           </CardContent>
         </Card>
 
         {result && (
-          <Card className="overflow-hidden">
-            <CardHeader className="pb-3">
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="p-4 pb-3">
               <CardTitle className="flex items-center gap-2">
                 {result.ok ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
                 Resultado
@@ -321,7 +318,7 @@ export function CotacaoPage() {
               </CardTitle>
               {!result.ok && result.data?.message && <CardDescription className="text-red-600 dark:text-red-400">{result.data.message}</CardDescription>}
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 pt-0">
               {isSuccess ? (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="p-4 rounded-xl border bg-gradient-to-br from-primary/5 to-transparent text-center shadow-sm">
@@ -354,9 +351,7 @@ export function CotacaoPage() {
                   <TabsTrigger value="raw">{returnType === "xml" ? "XML" : "Raw"}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="visual">
-                  {isSuccess ? (
-                    <div className="text-xs text-muted-foreground p-3 border rounded-lg bg-muted/20">Visual acima já resume os 3 campos principais. Use a aba JSON para inspeção completa.</div>
-                  ) : (
+                  {!isSuccess && (
                     <JsonViewer data={result.data} title="Resposta" />
                   )}
                 </TabsContent>

@@ -6,18 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Search, RefreshCw, Shield, User, Eye, EyeOff, Copy, Check, Building2, Download } from "lucide-react";
+import { Search, RefreshCw, Shield, User, Eye, EyeOff, Copy, Check, Building2, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { fetchClientesBatch, fetchClienteNome } from "@/lib/clienteCache";
 import { CreateCredentialDialog } from "./CreateCredentialDialog";
 import { lookupCepByCNPJ } from "@/lib/cnpj";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function CredentialSelector() {
+  const { cred, basic, setCred } = useAuthStore();
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(0);
   const pageSize = 50;
-  const { cred, basic, setCred } = useAuthStore();
+  const [listOpen, setListOpen] = useState(!cred);
   const [showSenha, setShowSenha] = useState(false);
   const [copied, setCopied] = useState(false);
   const [fetchingCnpj, setFetchingCnpj] = useState<string | null>(null);
@@ -53,6 +54,7 @@ export function CredentialSelector() {
       const senha = await obterSenha(usuario);
       setCred({ usuario, senha, senhaRaw: "" });
       setShowSenha(false);
+      setListOpen(false);
     } catch {
       // erro reportado pelo cofre; nada a fazer aqui por ora
     }
@@ -78,27 +80,35 @@ export function CredentialSelector() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary" /> Credenciais (Supabase)</CardTitle>
-        <CardDescription>
-          {data?.count ? `${data.count} encontrados` : ""}
-          {cred && <span className="ml-2 text-primary font-medium">Selecionado: {cred.usuario}</span>}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input aria-label="Buscar usuário ou Razão Social" placeholder="Buscar usuário ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
-          </div>
-          <Button variant="outline" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-2" />Recarregar</Button>
-          <CreateCredentialDialog onCreated={() => refetch()} />
+      <CardHeader className="flex flex-col items-stretch gap-3 space-y-0 p-4 pb-3">
+        <div className="min-w-0">
+          <CardTitle className="flex items-center gap-2 text-base"><Shield className="h-4 w-4 text-primary" /> Credenciais</CardTitle>
+          <CardDescription className="mt-1 truncate">
+            {cred ? <><span className="text-primary font-medium">{cred.usuario}</span>{selectedNome && <span> · {selectedNome}</span>}</> : `${data?.count ?? 0} credenciais disponíveis`}
+          </CardDescription>
         </div>
+        <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setListOpen((open) => !open)} aria-expanded={listOpen}>
+          {listOpen ? <><ChevronUp className="mr-1.5 h-4 w-4" />Ocultar lista</> : <><ChevronDown className="mr-1.5 h-4 w-4" />Trocar credencial</>}
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3 px-4 pb-4 pt-0">
+        {listOpen && (
+          <div className="flex flex-col gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input aria-label="Buscar usuário ou Razão Social" placeholder="Buscar usuário ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <Button variant="outline" className="w-full" onClick={() => refetch()}><RefreshCw className="mr-1.5 h-4 w-4" />Recarregar</Button>
+              <CreateCredentialDialog onCreated={() => refetch()} />
+            </div>
+          </div>
+        )}
 
         {error && <div className="text-sm text-red-600 p-3 border border-red-200 rounded bg-red-50">Erro: {(error as Error).message}</div>}
         {isLoading && <div className="text-sm text-muted-foreground">Carregando...</div>}
 
-        <div className="border rounded-lg max-h-[320px] overflow-auto scrollbar-thin divide-y">
+        {listOpen && <div className="credential-list border rounded-lg overflow-auto scrollbar-thin divide-y">
           {data?.data.map((c) => {
             const cnpj = c.usuario.split("_")[0].replace(/\D/g, "").padStart(14, "0");
             const nome = nomesMap?.get(cnpj);
@@ -109,7 +119,7 @@ export function CredentialSelector() {
                 tabIndex={0}
                 onClick={() => handleSelect(c.usuario)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(c.usuario); } }}
-                className={`w-full text-left px-3 py-2 hover:bg-accent flex flex-col gap-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${cred?.usuario === c.usuario ? "bg-primary/10" : ""}`}
+                className={`w-full text-left px-3 py-1.5 hover:bg-accent flex flex-col gap-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${cred?.usuario === c.usuario ? "bg-primary/10" : ""}`}
               >
                 <span className="flex items-center justify-between w-full">
                   <span className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-muted-foreground" />{c.usuario}</span>
@@ -125,12 +135,12 @@ export function CredentialSelector() {
                       onClick={(e) => handleFetchNome(e, cnpj)}
                       disabled={fetchingCnpj === cnpj}
                       className="italic text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
-                      title="Clique para buscar nome via BrasilAPI"
+                      title="Buscar nome"
                     >
                       {fetchingCnpj === cnpj ? (
                         <><span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" /> buscando...</>
                       ) : (
-                        <><Download className="h-3 w-3" /> sem nome no cache — clique para buscar</>
+                        <><Download className="h-3 w-3" /> Buscar nome</>
                       )}
                     </button>
                   )}
@@ -139,21 +149,21 @@ export function CredentialSelector() {
             );
           })}
           {data?.data.length === 0 && !isLoading && <div className="p-4 text-sm text-muted-foreground text-center">Nenhum usuário encontrado</div>}
-        </div>
+        </div>}
 
-        <div className="flex justify-between items-center">
+        {listOpen && <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
           <span className="text-xs text-muted-foreground">Página {page + 1} • {data?.count ?? "?"} total</span>
           <Button variant="ghost" size="sm" disabled={(data?.data.length ?? 0) < pageSize} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
-        </div>
+        </div>}
 
         {cred && (
           <div className="p-3 rounded bg-card border space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Usuário selecionado</Label>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 font-mono text-sm bg-muted px-2 py-1.5 rounded border truncate">{cred.usuario}</code>
+                  <code title={cred.usuario} className="flex-1 font-mono text-sm bg-muted px-2 py-1.5 rounded border truncate">{cred.usuario}</code>
                   <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleCopy(cred.usuario)} title="Copiar usuário">
                     {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                   </Button>
@@ -162,13 +172,13 @@ export function CredentialSelector() {
               <div className="space-y-1">
                 <Label className="text-xs flex items-center gap-1"><Building2 className="h-3 w-3" /> Cliente</Label>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-sm bg-muted px-2 py-1.5 rounded border truncate">{selectedNome || "— sem nome"}</code>
+                  <code title={selectedNome || "— sem nome"} className="flex-1 text-sm bg-muted px-2 py-1.5 rounded border truncate">{selectedNome || "— sem nome"}</code>
                   {selectedNome && <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleCopy(selectedNome)} title="Copiar nome"><Copy className="h-4 w-4" /></Button>}
                 </div>
                 <div className="text-[11px] text-muted-foreground">CNPJ {selectedCnpj}</div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Senha (visível para equipe)</Label>
+                <Label className="text-xs">Senha</Label>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 font-mono text-sm bg-muted px-2 py-1.5 rounded border truncate">{showSenha ? cred.senha : "•".repeat(Math.min(cred.senha.length, 16))}</code>
                   <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowSenha(!showSenha)} title={showSenha ? "Ocultar" : "Mostrar"}>
@@ -178,7 +188,6 @@ export function CredentialSelector() {
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="text-[11px] text-muted-foreground">Descriptografada no cofre (Electron)</div>
               </div>
             </div>
             <div className="flex gap-2">

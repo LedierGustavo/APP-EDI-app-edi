@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordField } from "@/components/ui/PasswordField";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { JsonViewer, XmlViewer } from "@/components/ui/json-viewer";
@@ -117,26 +117,27 @@ export function SoapPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <CredencialSoapSelector value={cnpjSoapWatch} onSelect={(cnpj) => formSoap.setValue("cnpjCliente", cnpj, { shouldValidate: true, shouldDirty: true })} />
-      <Card>
-        <CardHeader>
+    <div className="service-workspace soap-workspace">
+      <aside className="service-credentials min-w-0">
+        <CredencialSoapSelector value={cnpjSoapWatch} onSelect={(cnpj) => formSoap.setValue("cnpjCliente", cnpj, { shouldValidate: true, shouldDirty: true })} />
+      </aside>
+      <section className="service-content min-w-0 space-y-4">
+      <Card className="min-w-0">
+        <CardHeader className="p-4 pb-3">
           <CardTitle className="flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> Tracking SOAP - Lote Múltiplas Ocorrências</CardTitle>
-          <CardDescription>Tela dedicada para SOAP (separada do Tracking v3) • Token por CNPJ em credenciais_soap • criptografado via Rust</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={formSoap.handleSubmit(onSearchSoap)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <CardContent className="p-4 pt-0">
+          <form onSubmit={formSoap.handleSubmit(onSearchSoap)} className="service-form space-y-3">
+            <div className="fields-two grid grid-cols-1 gap-3">
               <div>
-                <Label htmlFor="soap-cnpj">CNPJ Cliente *</Label><Input id="soap-cnpj" {...formSoap.register("cnpjCliente", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} placeholder="04896434000504" />
-                <p className="text-[11px] text-muted-foreground">Selecione na lista acima ou digite manualmente</p>
+                <Label htmlFor="soap-cnpj">CNPJ Cliente *</Label><Input id="soap-cnpj" {...formSoap.register("cnpjCliente", { onBlur: (e) => syncParam("cnpj", String(e.target.value).replace(/\D/g, "")) })} />
                 {nomeSoap && <div className="flex items-center gap-1 text-xs text-primary mt-1"><Building2 className="h-3 w-3" />{nomeSoap}</div>}
                 {formSoap.formState.errors.cnpjCliente && <p className="text-xs text-red-600">{String(formSoap.formState.errors.cnpjCliente.message)}</p>}
               </div>
               <div>
                 <Label htmlFor="soap-token" className="flex items-center gap-2">Token * {tokenSoap && !editingToken && <span className="text-xs text-emerald-600">(do banco)</span>}</Label>
                 <div className="flex gap-2">
-                  <PasswordField id="soap-token" {...formSoap.register("token")} placeholder="@Alpar#123" disabled={!editingToken && !!tokenSoap} containerClassName="flex-1" />
+                  <PasswordField id="soap-token" {...formSoap.register("token")} disabled={!editingToken && !!tokenSoap} containerClassName="flex-1" />
                   {tokenSoap && !editingToken ? (
                     <Button type="button" variant="outline" onClick={() => setEditingToken(true)}>Editar</Button>
                   ) : tokenSoap && editingToken ? (
@@ -144,21 +145,21 @@ export function SoapPage() {
                   ) : null}
                 </div>
                 {formSoap.formState.errors.token && <p className="text-xs text-red-600">{String(formSoap.formState.errors.token.message)}</p>}
-                {!tokenSoap && <p className="text-[11px] text-amber-600">Sem token no banco — digite manualmente ou use + Novo Token</p>}
+                {!tokenSoap && <p className="text-[11px] text-amber-600">Token não cadastrado</p>}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="fields-three grid grid-cols-1 gap-3">
               <div><Label htmlFor="soap-tipo">Tipo Cliente</Label><select id="soap-tipo" {...formSoap.register("tipoCliente")} className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="1">1</option><option value="2">2</option></select></div>
-              <div><Label htmlFor="soap-nf">Nota Fiscal *</Label><Input id="soap-nf" {...formSoap.register("numeroNotaFiscal", { onBlur: (e) => syncParam("nf", String(e.target.value)) })} placeholder="244142" />{formSoap.formState.errors.numeroNotaFiscal && <p className="text-xs text-red-600">{String(formSoap.formState.errors.numeroNotaFiscal.message)}</p>}</div>
-              <div><Label htmlFor="soap-serie">Série NF</Label><Input id="soap-serie" {...formSoap.register("serieNotaFiscal")} placeholder="1" /></div>
+              <div><Label htmlFor="soap-nf">Nota Fiscal *</Label><Input id="soap-nf" {...formSoap.register("numeroNotaFiscal", { onBlur: (e) => syncParam("nf", String(e.target.value)) })} />{formSoap.formState.errors.numeroNotaFiscal && <p className="text-xs text-red-600">{String(formSoap.formState.errors.numeroNotaFiscal.message)}</p>}</div>
+              <div><Label htmlFor="soap-serie">Série NF</Label><Input id="soap-serie" {...formSoap.register("serieNotaFiscal")} /></div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div><Label htmlFor="soap-cte">Nº CTe (opcional)</Label><Input id="soap-cte" {...formSoap.register("numeroCTe")} placeholder="" /></div>
-              <div><Label htmlFor="soap-cnpj-dest">CNPJ Destinatário (opcional)</Label><Input id="soap-cnpj-dest" {...formSoap.register("cnpjDestinatario")} placeholder="" /></div>
+            <div className="fields-two grid grid-cols-1 gap-3">
+              <div><Label htmlFor="soap-cte">Nº CTe</Label><Input id="soap-cte" {...formSoap.register("numeroCTe")} /></div>
+              <div><Label htmlFor="soap-cnpj-dest">CNPJ Destinatário</Label><Input id="soap-cnpj-dest" {...formSoap.register("cnpjDestinatario")} /></div>
             </div>
             <details className="border rounded-lg p-3 bg-muted/20">
               <summary className="text-sm font-medium cursor-pointer">Atributos 01-05 (opcionais)</summary>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+              <div className="fields-two mt-3 grid grid-cols-1 gap-3">
                 <div><Label htmlFor="soap-atr01">Atributo01</Label><Input id="soap-atr01" {...formSoap.register("atributo01")} /></div>
                 <div><Label htmlFor="soap-atr02">Atributo02</Label><Input id="soap-atr02" {...formSoap.register("atributo02")} /></div>
                 <div><Label htmlFor="soap-atr03">Atributo03</Label><Input id="soap-atr03" {...formSoap.register("atributo03")} /></div>
@@ -167,23 +168,22 @@ export function SoapPage() {
               </div>
             </details>
             <div className="flex gap-2">
-              <Button type="submit" disabled={loadingSoap}><Search className="h-4 w-4 mr-2" />{loadingSoap ? "Consultando..." : "Consultar Lote SOAP"}</Button>
+              <Button type="submit" disabled={loadingSoap} className="w-full sm:w-auto"><Search className="h-4 w-4 mr-2" />{loadingSoap ? "Consultando..." : "Consultar Lote SOAP"}</Button>
             </div>
-            <p className="text-xs text-muted-foreground">POST http://soa.braspress.com.br:80/... • Content-Type: text/xml; SOAPAction: consultaLoteMultiplasOcorrenciasBraspress</p>
           </form>
         </CardContent>
       </Card>
 
       {resultSoap && (
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-3">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 pb-3">
             <CardTitle className="flex items-center gap-2">
               {resultSoap.ok ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
               Resultado SOAP
               <Badge className={resultSoap.ok ? "bg-emerald-500/10 text-emerald-700 border-emerald-200" : "bg-red-500/10 text-red-700 border-red-200"}>{resultSoap.status}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 pt-0">
             <Tabs defaultValue="visual">
               <TabsList>
                 <TabsTrigger value="visual">Visual</TabsTrigger>
@@ -229,6 +229,7 @@ export function SoapPage() {
           </CardContent>
         </Card>
       )}
+      </section>
     </div>
   );
 }

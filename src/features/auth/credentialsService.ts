@@ -31,3 +31,14 @@ export async function criarCredencial(usuario: string, senha: string): Promise<{
   const res = await api.criarCredencial({ usuario, senha });
   return res.ok ? {} : { error: res.error };
 }
+
+export type CredentialBatchResult = { ok: true } | { ok: false; error: string };
+
+export async function createCredentialBatch(usuario: string, senha: string): Promise<CredentialBatchResult> {
+  try {
+    const result = await criarCredencial(usuario, senha);
+    return result.error ? { ok: false, error: result.error } : { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Falha ao salvar credencial" };
+  }
+}
