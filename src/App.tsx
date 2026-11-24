@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Moon, Sun, Calculator, Package, Download, RefreshCw, Truck, MapPin, Boxes, KeyRound, Tags, ChevronRight } from "lucide-react";
+import { useApiEnvironmentStore } from "@/store/apiEnvironmentStore";
+import { useAuthStore } from "@/store/authStore";
 
 const navItems = [
   { to: "/cotacao", label: "Cotação", title: "Cotação de frete", description: "Simule fretes e confira o payload antes de enviar.", icon: Calculator },
@@ -25,18 +27,36 @@ const navItems = [
 ];
 
 function AppSidebar() {
+  const { environment, toggleEnvironment } = useApiEnvironmentStore();
+  const clearCredential = useAuthStore((state) => state.clear);
+  const isHml = environment === "hml";
+  const visibleNavItems = isHml ? navItems.slice(0, 2) : navItems;
   return (
     <aside className="app-sidebar">
       <div className="app-brand">
-        <span className="app-brand-mark"><Boxes className="h-5 w-5" /></span>
+        <button
+          type="button"
+          className="app-brand-mark app-brand-environment-toggle"
+          onClick={() => {
+            clearCredential();
+            toggleEnvironment();
+          }}
+          aria-label={`Alternar para ambiente ${isHml ? "Produção" : "HML"}`}
+          title={`Ambiente ${isHml ? "HML" : "Produção"}; clique para alternar`}
+        >
+          <Boxes className="h-5 w-5" />
+        </button>
         <div className="min-w-0">
           <h1>APP EDI</h1>
-          <p>Workspace operacional</p>
+          <p className="app-brand-subtitle">
+            Workspace operacional
+            <span className={`app-environment-badge ${isHml ? "is-hml" : ""}`}>{isHml ? "HML" : "PROD"}</span>
+          </p>
         </div>
       </div>
       <div className="app-nav-label">Workspace</div>
       <nav className="app-navigation" aria-label="Navegação principal">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {visibleNavItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -61,8 +81,10 @@ function AppSidebar() {
 
 function Header() {
   const { theme, setTheme } = useTheme();
+  const { environment } = useApiEnvironmentStore();
   const { pathname } = useLocation();
-  const activePage = navItems.find((item) => item.to === pathname) ?? navItems[0];
+  const visibleNavItems = environment === "hml" ? navItems.slice(0, 2) : navItems;
+  const activePage = visibleNavItems.find((item) => item.to === pathname) ?? visibleNavItems[0];
   const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   return (
     <header className="app-header">
@@ -132,6 +154,7 @@ function CredentialLayout() {
 }
 
 function AppInner() {
+  const { environment } = useApiEnvironmentStore();
   return (
     <div className="app-shell">
       <AppSidebar />
@@ -145,10 +168,14 @@ function AppInner() {
                 <Route path="/cotacao" element={<CotacaoPage />} />
                 <Route path="/tracking" element={<TrackingPage />} />
               </Route>
-              <Route path="/soap" element={<SoapPage />} />
-              <Route path="/rotacep" element={<RotaCepPage />} />
-              <Route path="/etiqueta" element={<EtiquetaPage />} />
-              <Route path="/credenciais-lote" element={<BulkCredentialPage />} />
+              {environment === "production" && (
+                <>
+                  <Route path="/soap" element={<SoapPage />} />
+                  <Route path="/rotacep" element={<RotaCepPage />} />
+                  <Route path="/etiqueta" element={<EtiquetaPage />} />
+                  <Route path="/credenciais-lote" element={<BulkCredentialPage />} />
+                </>
+              )}
               <Route path="*" element={<Navigate to="/cotacao" replace />} />
             </Routes>
           </ErrorBoundary>

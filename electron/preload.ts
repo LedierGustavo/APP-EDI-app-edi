@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 type IpcOk<T> = { ok: true; data: T; count?: number | null };
 type IpcErr = { ok: false; error: string; errorCode?: string };
+type CredentialEnvironment = "production" | "hml";
 
 function subscribe(channel: string, cb: () => void): () => void {
   const listener = () => cb();
@@ -12,7 +13,7 @@ function subscribe(channel: string, cb: () => void): () => void {
 contextBridge.exposeInMainWorld("api", {
   // Credenciais (cofre): list sem senha, get com senha sob demanda
   listarCredenciais: (args: unknown) => ipcRenderer.invoke("listar-credenciais", args),
-  obterCredencial: (usuario: string) => ipcRenderer.invoke("obter-credencial", usuario),
+  obterCredencial: (args: unknown) => ipcRenderer.invoke("obter-credencial", args),
   criarCredencial: (args: unknown) => ipcRenderer.invoke("criar-credencial", args),
   atualizarCredencial: (args: unknown) => ipcRenderer.invoke("atualizar-credencial", args),
 
@@ -48,10 +49,10 @@ contextBridge.exposeInMainWorld("api", {
 declare global {
   interface Window {
     api: {
-      listarCredenciais: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
-      obterCredencial: (usuario: string) => Promise<IpcOk<{ usuario: string; senha: string }> | IpcErr>;
-      criarCredencial: (args: { usuario: string; senha: string }) => Promise<IpcOk<unknown> | IpcErr>;
-      atualizarCredencial: (args: { usuarioAtual: string; usuario: string; senha?: string }) => Promise<IpcOk<unknown> | IpcErr>;
+      listarCredenciais: (args: { search?: string; page: number; pageSize: number; environment: CredentialEnvironment }) => Promise<IpcOk<unknown[]> | IpcErr>;
+      obterCredencial: (args: { usuario: string; environment: CredentialEnvironment }) => Promise<IpcOk<{ usuario: string; senha: string }> | IpcErr>;
+      criarCredencial: (args: { usuario: string; senha: string; environment: CredentialEnvironment }) => Promise<IpcOk<unknown> | IpcErr>;
+      atualizarCredencial: (args: { usuarioAtual: string; usuario: string; senha?: string; environment: CredentialEnvironment }) => Promise<IpcOk<unknown> | IpcErr>;
 
       listarEtiquetas: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
       obterEtiqueta: (args: { cnpj: string }) => Promise<IpcOk<{ cnpj: string; codigo_cliente: string | null; senha: string }> | IpcErr>;

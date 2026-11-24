@@ -6,13 +6,14 @@
 export type IpcOk<T> = { ok: true; data: T; count?: number | null };
 export type IpcErr = { ok: false; error: string; errorCode?: string };
 export type IpcResult<T> = IpcOk<T> | IpcErr;
+type CredentialEnvironment = "production" | "hml";
 
 // Mantido em sincronia com a declaração em electron/preload.ts.
 export interface ElectronApi {
-  listarCredenciais: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
-  obterCredencial: (usuario: string) => Promise<IpcOk<{ usuario: string; senha: string }> | IpcErr>;
-  criarCredencial: (args: { usuario: string; senha: string }) => Promise<IpcOk<unknown> | IpcErr>;
-  atualizarCredencial: (args: { usuarioAtual: string; usuario: string; senha?: string }) => Promise<IpcOk<unknown> | IpcErr>;
+  listarCredenciais: (args: { search?: string; page: number; pageSize: number; environment: CredentialEnvironment }) => Promise<IpcOk<unknown[]> | IpcErr>;
+  obterCredencial: (args: { usuario: string; environment: CredentialEnvironment }) => Promise<IpcOk<{ usuario: string; senha: string }> | IpcErr>;
+  criarCredencial: (args: { usuario: string; senha: string; environment: CredentialEnvironment }) => Promise<IpcOk<unknown> | IpcErr>;
+  atualizarCredencial: (args: { usuarioAtual: string; usuario: string; senha?: string; environment: CredentialEnvironment }) => Promise<IpcOk<unknown> | IpcErr>;
 
   listarEtiquetas: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
   obterEtiqueta: (args: { cnpj: string }) => Promise<IpcOk<{ cnpj: string; codigo_cliente: string | null; senha: string }> | IpcErr>;

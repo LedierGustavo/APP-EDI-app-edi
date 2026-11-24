@@ -12,13 +12,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X } from "lucide-react";
 import { normalizeCNPJ } from "@/lib/cnpj";
 import { getApi } from "@/lib/ipc";
+import type { ApiEnvironment } from "@/store/apiEnvironmentStore";
 
 const schema = z.object({
   usuario: z.string().min(1, "Usuário obrigatório").regex(/^\d{14}_[A-Z0-9]+$/, "Formato deve ser CNPJ_SUFIXO ex: 60701190000104_PRD"),
   senha: z.string().min(6, "Senha mínimo 6 caracteres"),
 });
 
-export function CreateCredentialDialog({ onCreated }: { onCreated?: () => void }) {
+export function CreateCredentialDialog({
+  environment,
+  onCreated,
+}: {
+  environment: ApiEnvironment;
+  onCreated?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -40,7 +47,7 @@ export function CreateCredentialDialog({ onCreated }: { onCreated?: () => void }
     setMsg(null);
     try {
       // O cofre (main) criptografa e grava; o renderer nunca vê a chave nem grava texto puro.
-      const res = await criarCredencial(data.usuario, data.senha);
+      const res = await criarCredencial(data.usuario, data.senha, environment);
       if (res.error) throw new Error(res.error);
 
       // Aquece o cache de nome no main (best-effort).

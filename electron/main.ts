@@ -1,6 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, net, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, type IpcMainInvokeEvent } from "electron";
+import { spawn } from "child_process";
+import { createHash, randomUUID } from "crypto";
+import { createReadStream, createWriteStream, promises as fs } from "fs";
 import https from "https";
 import path from "path";
+import { pipeline } from "stream/promises";
 import { autoUpdater } from "electron-updater";
 import { SecurityVault } from "./security";
 import { resolvePassword, encryptFernet } from "./crypto";
@@ -80,6 +84,13 @@ type IpcErr = { ok: false; error: string; errorCode?: string };
 type VaultNotice = { ok: false; error: string; errorCode: "VAULT_NOT_READY" };
 type ListResult<T> = IpcOk<T> | IpcErr;
 type DetailResult<T> = IpcOk<T> | IpcErr | VaultNotice;
+type CredentialEnvironment = "production" | "hml";
+
+function getCredentialTable(environment: unknown): "credenciais" | "credenciais_hml" {
+  if (environment === undefined || environment === "production") return "credenciais";
+  if (environment === "hml") return "credenciais_hml";
+  throw new Error("Ambiente de credenciais inválido.");
+}
 
 function err(e: unknown): IpcErr {
   return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -168,13 +179,13 @@ function registerCredenciaisLegado() {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
-      const { search = "", page, pageSize } = (args ?? {}) as Record<string, unknown>;
+      const { search = "", page, pageSize, environment } = (args ?? {}) as Record<string, unknown>;
       const p = clampPage(page);
       const size = clampPageSize(pageSize);
       const from = p * size;
       const to = from + size - 1;
 
-      let query = SecurityVault.supabase!.from("credenciais").select(
+      let query = SecurityVault.supabase!.from(getCredentialTable(environment)).select(
         "id,usuario,criado_em",
         { count: "exact" },
       );
@@ -198,14 +209,15 @@ function registerCredenciaisLegado() {
   });
 
   // Detalhe com senha descriptografada no main.
-  handle("obter-credencial", async (_e, usuarioRaw): Promise<DetailResult<unknown>> => {
+  handle("obter-credencial", async (_e, args): Promise<DetailResult<unknown>> => {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
+      const { usuario: usuarioRaw, environment } = (args ?? {}) as Record<string, unknown>;
       const usuario = String(usuarioRaw ?? "").trim();
       if (!usuario) return { ok: false, error: "Usuário obrigatório" };
       const { data, error } = await SecurityVault.supabase!
-        .from("credenciais")
+        .from(getCredentialTable(environment))
         .select("usuario,senha")
         .eq("usuario", usuario)
         .maybeSingle();
@@ -226,7 +238,7 @@ function registerCredenciaisLegado() {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
-      const { usuario = "", senha = "" } = (args ?? {}) as Record<string, string>;
+      const { usuario = "", senha = "", environment } = (args ?? {}) as Record<string, string | CredentialEnvironment>;
       const u = String(usuario).trim();
       if (!/^\d{14}_[A-Z0-9]+$/.test(u)) {
         return { ok: false, error: "Usuário deve ser CNPJ_SUFIXO (ex: 60701190000104_PRD)" };
@@ -234,7 +246,7 @@ function registerCredenciaisLegado() {
       if (String(senha).length < 6) return { ok: false, error: "Senha mínimo 6 caracteres" };
       const senhaEnc = encryptFernet(String(senha), SecurityVault.fernetSecret);
       const { error } = await SecurityVault.supabase!
-        .from("credenciais")
+        .from(getCredentialTable(environment))
         .insert({ usuario: u, senha: senhaEnc });
       if (error) return { ok: false, error: error.message, errorCode: error.code };
       return { ok: true, data: { usuario: u } };
@@ -247,7 +259,7 @@ function registerCredenciaisLegado() {
     const guard = vaultGuard();
     if (guard) return guard;
     try {
-      const { usuarioAtual = "", usuario = "", senha = "" } = (args ?? {}) as Record<string, string>;
+      const { usuarioAtual = "", usuario = "", senha = "", environment } = (args ?? {}) as Record<string, string | CredentialEnvironment>;
       const original = String(usuarioAtual).trim();
       const updatedUser = String(usuario).trim();
       const newPassword = String(senha);
@@ -262,7 +274,7 @@ function registerCredenciaisLegado() {
       const update: Record<string, string> = { usuario: updatedUser };
       if (newPassword) update.senha = encryptFernet(newPassword, SecurityVault.fernetSecret);
       const { data, error } = await SecurityVault.supabase!
-        .from("credenciais")
+        .from(getCredentialTable(environment))
         .update(update)
         .eq("usuario", original)
         .select("usuario")
@@ -602,13 +614,15 @@ function registerIntegracoes() {
   // Cotação
   handle("call-cotacao", async (_e, args) => {
     try {
-      const { basic, payload, returnType } = args as {
+      const { basic, payload, returnType, environment } = args as {
         basic: string;
         payload: unknown;
         returnType?: string;
+        environment?: string;
       };
       const rt = returnType === "xml" ? "xml" : "json";
-      const res = await net.fetch(`https://api.braspress.com/v1/cotacao/calcular/${rt}`, {
+      const base = environment === "hml" ? "https://hml-api.braspress.com" : "https://api.braspress.com";
+      const res = await net.fetch(`${base}/v1/cotacao/calcular/${rt}`, {
         method: "POST",
         headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -657,18 +671,19 @@ function registerIntegracoes() {
     }
   });
 
-  // Tracking v3
+  // Tracking v4
   handle("call-tracking", async (_e, args) => {
     try {
-      const { basic, cnpj, valor, tipo, returnType } = args as {
+      const { basic, cnpj, valor, tipo, returnType, environment } = args as {
         basic: string;
         cnpj: string;
         valor: string;
         tipo: "byNf" | "byNumPedido";
         returnType?: string;
+        environment?: string;
       };
       const rt = returnType === "xml" ? "xml" : "json";
-      const base = "https://api.braspress.com/v3/tracking";
+      const base = `${environment === "hml" ? "https://hml-api.braspress.com" : "https://api.braspress.com"}/v4/tracking`;
       const url =
         tipo === "byNf"
           ? `${base}/byNf/${cnpj}/${valor}/${rt}`
@@ -879,50 +894,197 @@ async function upsertClienteNomeSilent(cnpj: string, nome: string): Promise<void
 // Auto-update
 // ---------------------------------------------------------------------------
 
-// O build Portable não é instalado, então não consegue se atualizar sozinho:
-// ao detectar nova versão, avisa o usuário e oferece o link do .exe no GitHub.
 const IS_PORTABLE = !!process.env.PORTABLE_EXECUTABLE_DIR;
 const GITHUB_REPO = "LedierGustavo/APP-EDI-app-edi";
 let portableNotifiedVersion: string | null = null;
 
-async function findPortableDownloadUrl(version: string): Promise<string> {
-  const releasePage = `https://github.com/${GITHUB_REPO}/releases/tag/v${version}`;
-  try {
-    const r = await net.fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/tags/v${version}`, {
-      headers: { Accept: "application/vnd.github+json" },
-      signal: AbortSignal.timeout(5000),
+type PortableReleaseAsset = {
+  name: string;
+  size: number;
+  digest: string;
+  browser_download_url: string;
+};
+
+async function findPortableReleaseAsset(version: string): Promise<PortableReleaseAsset> {
+  const response = await net.fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/tags/v${version}`, {
+    headers: { Accept: "application/vnd.github+json" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error(`Não foi possível consultar a release v${version} (HTTP ${response.status}).`);
+
+  const release = (await response.json()) as {
+    assets?: Array<Omit<PortableReleaseAsset, "digest"> & { digest?: string }>;
+  };
+  const asset = release.assets?.find((candidate) => /portable.*\.exe$/i.test(candidate.name));
+  if (!asset) throw new Error(`A release v${version} não contém o executável Portable.`);
+  const digest = asset.digest;
+  if (!digest || !/^sha256:[a-f0-9]{64}$/i.test(digest)) {
+    throw new Error("A release não publicou um checksum SHA-256 válido para o Portable.");
+  }
+  return { ...asset, digest };
+}
+
+function downloadHttpsFile(
+  url: string,
+  destination: string,
+  onProgress: (progress: number) => void,
+  redirects = 0,
+): Promise<void> {
+  const parsedUrl = new URL(url);
+  if (parsedUrl.protocol !== "https:") return Promise.reject(new Error("O download da atualização precisa usar HTTPS."));
+  if (redirects > 5) return Promise.reject(new Error("O download excedeu o limite de redirecionamentos."));
+
+  return new Promise((resolve, reject) => {
+    const request = https.get(parsedUrl, (response) => {
+      const status = response.statusCode ?? 0;
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        const location = response.headers.location;
+        response.resume();
+        if (!location) {
+          reject(new Error("O servidor retornou um redirecionamento sem destino."));
+          return;
+        }
+        void downloadHttpsFile(new URL(location, parsedUrl).toString(), destination, onProgress, redirects + 1)
+          .then(resolve, reject);
+        return;
+      }
+      if (status !== 200) {
+        response.resume();
+        reject(new Error(`O download do Portable falhou (HTTP ${status}).`));
+        return;
+      }
+
+      const total = Number(response.headers["content-length"]) || 0;
+      let received = 0;
+      response.on("data", (chunk: Buffer) => {
+        received += chunk.length;
+        onProgress(total > 0 ? Math.min(received / total, 1) : 2);
+      });
+      void pipeline(response, createWriteStream(destination, { flags: "wx" })).then(resolve, reject);
     });
-    if (!r.ok) return releasePage;
-    const j = (await r.json()) as { assets?: { name: string; browser_download_url: string }[] };
-    const asset = j.assets?.find((a) => /portable.*\.exe$/i.test(a.name));
-    return asset?.browser_download_url ?? releasePage;
-  } catch {
-    return releasePage;
+    request.setTimeout(120000, () => request.destroy(new Error("O download do Portable ficou sem resposta por muito tempo.")));
+    request.on("error", reject);
+  });
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(filePath)) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+function powerShellLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+async function startPortableUpdateHelper(targetPath: string, stagedPath: string): Promise<void> {
+  const scriptPath = path.join(app.getPath("temp"), `app-edi-portable-update-${randomUUID()}.ps1`);
+  const backupPath = `${targetPath}.backup-${randomUUID()}`;
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `$processIdToWait = ${process.pid}`,
+    `$target = ${powerShellLiteral(targetPath)}`,
+    `$staged = ${powerShellLiteral(stagedPath)}`,
+    `$backup = ${powerShellLiteral(backupPath)}`,
+    "try {",
+    "  Wait-Process -Id $processIdToWait -ErrorAction SilentlyContinue",
+    "  [System.IO.File]::Move($target, $backup)",
+    "  try { [System.IO.File]::Move($staged, $target) } catch { [System.IO.File]::Move($backup, $target); throw }",
+    "  [System.IO.File]::Delete($backup)",
+    "  Start-Process -FilePath $target",
+    "} catch {",
+    "  $message = \"A atualização não foi aplicada. O executável anterior será iniciado se possível.`nErro: $($_.Exception.Message)`nNovo arquivo: $staged\"",
+    "  try { Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show($message, 'APP EDI - Atualização', 'OK', 'Error') } catch { [System.IO.File]::WriteAllText(($target + '.update-error.txt'), $message) }",
+    "  if (Test-Path -LiteralPath $target) { Start-Process -FilePath $target }",
+    "} finally { Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue }",
+  ].join("\r\n");
+  await fs.writeFile(scriptPath, script, "utf8");
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const helper = spawn("powershell.exe", [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        scriptPath,
+      ], { detached: true, stdio: "ignore", windowsHide: true });
+      helper.once("error", reject);
+      helper.once("spawn", () => {
+        helper.unref();
+        resolve();
+      });
+    });
+  } catch (error) {
+    await fs.rm(scriptPath, { force: true });
+    throw error;
   }
 }
 
 async function notifyPortableUpdate(version: string): Promise<void> {
   if (portableNotifiedVersion === version) return;
   portableNotifiedVersion = version;
-  const url = await findPortableDownloadUrl(version);
-  const options = {
-    type: "info" as const,
-    title: "Atualização disponível",
-    message: `Nova versão ${version} disponível.`,
-    detail: `Você está usando a versão Portable. Baixe o novo .exe Portable e substitua o atual.\n\n${url}`,
-    buttons: ["Baixar Portable", "Depois"],
-    defaultId: 0,
-    cancelId: 1,
-  };
-  const { response } = win
-    ? await dialog.showMessageBox(win, options)
-    : await dialog.showMessageBox(options);
-  if (response === 0) await shell.openExternal(url);
+  try {
+    const asset = await findPortableReleaseAsset(version);
+    const prompt = {
+      type: "info" as const,
+      title: "Atualização disponível",
+      message: `Nova versão ${version} disponível.`,
+      detail: "O Portable será baixado e substituirá o executável atual depois que o APP EDI fechar. Em seguida, a nova versão será aberta.",
+      buttons: ["Atualizar agora", "Depois"],
+      defaultId: 0,
+      cancelId: 1,
+    };
+    const { response } = win
+      ? await dialog.showMessageBox(win, prompt)
+      : await dialog.showMessageBox(prompt);
+    if (response !== 0) return;
+
+    const targetPath = process.env.PORTABLE_EXECUTABLE_FILE;
+    if (!targetPath) throw new Error("Não foi possível localizar o executável Portable em uso.");
+    const resolvedTarget = path.resolve(targetPath);
+    const targetStats = await fs.stat(resolvedTarget);
+    if (!targetStats.isFile()) throw new Error("O caminho do executável Portable não é um arquivo.");
+
+    const stagedPath = path.join(path.dirname(resolvedTarget), `.${path.basename(resolvedTarget)}.${randomUUID()}.download`);
+    try {
+      win?.setProgressBar(2);
+      await downloadHttpsFile(asset.browser_download_url, stagedPath, (progress) => win?.setProgressBar(progress));
+      win?.setProgressBar(-1);
+
+      const downloadedStats = await fs.stat(stagedPath);
+      if (downloadedStats.size !== asset.size) throw new Error("O tamanho do Portable baixado não corresponde ao arquivo publicado.");
+      const expectedDigest = asset.digest.slice("sha256:".length).toLowerCase();
+      if ((await sha256File(stagedPath)) !== expectedDigest) throw new Error("A verificação de integridade do Portable falhou.");
+
+      await startPortableUpdateHelper(resolvedTarget, stagedPath);
+      app.quit();
+    } catch (error) {
+      win?.setProgressBar(-1);
+      await fs.rm(stagedPath, { force: true });
+      throw error;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[portable-updater] erro:", message);
+    const options = {
+      type: "error" as const,
+      title: "Não foi possível atualizar o Portable",
+      message: "A versão atual será mantida.",
+      detail: message,
+      buttons: ["OK"],
+    };
+    if (win) await dialog.showMessageBox(win, options);
+    else await dialog.showMessageBox(options);
+  }
 }
 
 function setupAutoUpdater() {
   autoUpdater.on("update-available", (info) => {
-    if (IS_PORTABLE) void notifyPortableUpdate(info.version);
+    if (IS_PORTABLE) {
+      void notifyPortableUpdate(info.version);
+      return;
+    }
     win?.webContents.send("update-available");
   });
   autoUpdater.on("update-downloaded", () => win?.webContents.send("update-downloaded"));

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchCredenciais, obterSenha } from "./credentialsService";
 import { useAuthStore } from "@/store/authStore";
+import { useApiEnvironmentStore } from "@/store/apiEnvironmentStore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ import { CredentialDrawer } from "@/components/layout/CredentialDrawer";
 
 export function CredentialSelector() {
   const { cred, basic, setCred } = useAuthStore();
+  const { environment: apiEnvironment } = useApiEnvironmentStore();
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(0);
@@ -28,7 +30,7 @@ export function CredentialSelector() {
   const selectedCnpj = cred?.usuario
     ? cred.usuario.split("_")[0].replace(/\D/g, "").padStart(14, "0")
     : "";
-  const environment = cred?.usuario.split("_").slice(1).join("_") || null;
+  const credentialEnvironment = cred?.usuario.split("_").slice(1).join("_") || null;
   const { data: selectedNome } = useQuery({
     queryKey: ["cliente_cache", selectedCnpj],
     queryFn: () => fetchClienteNome(selectedCnpj),
@@ -45,8 +47,8 @@ export function CredentialSelector() {
   }, [search]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["credenciais", debounced, page],
-    queryFn: () => fetchCredenciais({ search: debounced, page, pageSize }),
+    queryKey: ["credenciais", apiEnvironment, debounced, page],
+    queryFn: () => fetchCredenciais({ search: debounced, page, pageSize, environment: apiEnvironment }),
   });
 
   const cnpjsPage = useMemo(
@@ -64,7 +66,7 @@ export function CredentialSelector() {
 
   const handleSelect = async (usuario: string) => {
     try {
-      const senha = await obterSenha(usuario);
+      const senha = await obterSenha(usuario, apiEnvironment);
       setCred({ usuario, senha, senhaRaw: "" });
       setShowSenha(false);
       setDrawerOpen(false);
@@ -111,7 +113,7 @@ export function CredentialSelector() {
       category="Acesso EDI"
       selected={cred?.usuario}
       client={selectedNome}
-      environment={environment}
+      environment={credentialEnvironment}
       icon={Shield}
     >
       <div className="credential-drawer-tools">
@@ -136,7 +138,7 @@ export function CredentialSelector() {
         >
           <RefreshCw className="h-4 w-4" />
         </Button>
-        <CreateCredentialDialog onCreated={() => refetch()} />
+        <CreateCredentialDialog environment={apiEnvironment} onCreated={() => refetch()} />
       </div>
 
       {error && <div role="alert" className="credential-drawer-error">Erro: {(error as Error).message}</div>}
@@ -187,6 +189,7 @@ export function CredentialSelector() {
                 )}
                 <EditCredentialDialog
                   usuario={credential.usuario}
+                  environment={apiEnvironment}
                   onUpdated={(usuario, senha) => handleCredentialUpdated(credential.usuario, usuario, senha)}
                 />
               </div>
@@ -206,7 +209,7 @@ export function CredentialSelector() {
         <section className="credential-drawer-details">
           <div className="credential-drawer-section-title">
             <div><h3>Credencial selecionada</h3><p>Dados protegidos do acesso ativo.</p></div>
-            {environment && <span className="credential-environment">{environment}</span>}
+            {credentialEnvironment && <span className="credential-environment">{credentialEnvironment}</span>}
           </div>
           <div className="credential-detail-item">
             <Label htmlFor="active-credential-user">Usuário</Label>

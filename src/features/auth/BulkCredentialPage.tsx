@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { createCredentialBatch, type CredentialBatchResult } from "./credentialsService";
 import { CheckCircle2, KeyRound, Loader2, RotateCcw, Save, XCircle } from "lucide-react";
+import { useApiEnvironmentStore } from "@/store/apiEnvironmentStore";
 
 type CredentialEntry = {
   usuario: string;
@@ -58,6 +59,7 @@ export function BulkCredentialPage() {
   const [results, setResults] = useState<CredentialBatchResult[]>([]);
   const [saving, setSaving] = useState(false);
   const [completedCount, setCompletedCount] = useState(0);
+  const { environment } = useApiEnvironmentStore();
   const queryClient = useQueryClient();
   const entries = useMemo(() => parseCredentialBatch(text), [text]);
   const invalidCount = entries.filter((entry) => entry.error).length;
@@ -79,7 +81,7 @@ export function BulkCredentialPage() {
     const nextResults = [...results];
     try {
       for (const { entry, index } of pendingEntries) {
-        const result = await createCredentialBatch(entry.usuario, entry.senha);
+        const result = await createCredentialBatch(entry.usuario, entry.senha, environment);
         nextResults[index] = result;
         setResults([...nextResults]);
       }

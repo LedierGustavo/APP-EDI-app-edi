@@ -10,6 +10,7 @@ import { PasswordField } from "@/components/ui/PasswordField";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pencil, X } from "lucide-react";
 import { atualizarCredencial } from "./credentialsService";
+import type { ApiEnvironment } from "@/store/apiEnvironmentStore";
 
 const schema = z.object({
   usuario: z.string().trim().regex(/^\d{14}_[A-Z0-9]+$/, "Formato deve ser CNPJ_SUFIXO ex: 60701190000104_PRD"),
@@ -20,9 +21,11 @@ type FormValues = z.infer<typeof schema>;
 
 export function EditCredentialDialog({
   usuario,
+  environment,
   onUpdated,
 }: {
   usuario: string;
+  environment: ApiEnvironment;
   onUpdated: (usuario: string, senha?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -43,7 +46,7 @@ export function EditCredentialDialog({
     setLoading(true);
     setError("");
     try {
-      const result = await atualizarCredencial(usuario, updatedUser, senha || undefined);
+      const result = await atualizarCredencial(usuario, updatedUser, environment, senha || undefined);
       if (result.error) {
         setError(result.error);
         return;

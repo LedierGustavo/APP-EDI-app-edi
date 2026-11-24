@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { cotacaoSchema } from "@/lib/validators";
 import { buildCurlCotacao } from "@/lib/braspress";
 import { useAuthStore } from "@/store/authStore";
+import { getApiBaseUrl, useApiEnvironmentStore } from "@/store/apiEnvironmentStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,8 @@ function cepLookupMessage(error: CnpjLookupError | undefined, cnpj: string): str
 
 export function CotacaoPage() {
   const { basic, cred } = useAuthStore();
+  const { environment } = useApiEnvironmentStore();
+  const apiBaseUrl = getApiBaseUrl(environment);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [returnType, setReturnType] = useState<"json" | "xml">("json");
@@ -192,8 +195,8 @@ export function CotacaoPage() {
     try {
       const payload = { ...data, cnpjRemetente: String(data.cnpjRemetente).replace(/\D/g, ""), cnpjDestinatario: String(data.cnpjDestinatario).replace(/\D/g, ""), cepOrigem: String(data.cepOrigem).replace(/\D/g, ""), cepDestino: String(data.cepDestino).replace(/\D/g, "") };
       const res = (window as any).api
-        ? await (window as any).api.callCotacao({ basic, payload, returnType })
-        : await fetch(`https://api.braspress.com/v1/cotacao/calcular/${returnType}`, { method: "POST", headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async (r) => {
+        ? await (window as any).api.callCotacao({ basic, payload, returnType, environment })
+        : await fetch(`${apiBaseUrl}/v1/cotacao/calcular/${returnType}`, { method: "POST", headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async (r) => {
             const text = await r.text();
             let data: any;
             try { data = JSON.parse(text); } catch {
@@ -304,7 +307,7 @@ export function CotacaoPage() {
           <CardHeader className="p-4 pb-3"><CardTitle className="text-sm">Prévia do payload</CardTitle></CardHeader>
           <CardContent className="space-y-2 p-4 pt-0">
             <JsonViewer data={values} title="JSON Payload" defaultCollapsed={false} />
-            <Button variant="outline" size="sm" onClick={() => { if (!basic) return; const payload = values as any; navigator.clipboard.writeText(buildCurlCotacao(basic, payload, returnType)); }}><Copy className="h-4 w-4 mr-1" />Copiar cURL</Button>
+            <Button variant="outline" size="sm" onClick={() => { if (!basic) return; const payload = values as any; navigator.clipboard.writeText(buildCurlCotacao(basic, payload, returnType, apiBaseUrl)); }}><Copy className="h-4 w-4 mr-1" />Copiar cURL</Button>
           </CardContent>
         </Card>
 

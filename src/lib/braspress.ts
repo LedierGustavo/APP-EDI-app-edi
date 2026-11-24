@@ -26,6 +26,6 @@ export type TrackingConhecimento = {
 };
 
 export function buildBasic(user: string, pass: string) { return btoa(`${user}:${pass}`); }
-export function buildCurlCotacao(basic: string, payload: CotacaoPayload, returnType: string) {
-  return `curl -H "Authorization: Basic ${basic}" -H "Content-Type: application/json" -d '${JSON.stringify(payload)}' -X POST https://api.braspress.com/v1/cotacao/calcular/${returnType}`;
+export function buildCurlCotacao(basic: string, payload: CotacaoPayload, returnType: string, baseUrl = "https://api.braspress.com") {
+  return `curl -H "Authorization: Basic ${basic}" -H "Content-Type: application/json" -d '${JSON.stringify(payload)}' -X POST ${baseUrl}/v1/cotacao/calcular/${returnType}`;
 }
