@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -51,8 +52,8 @@ export function CreateTokenSoapDialog({ onCreated, defaultCnpj }: { onCreated?: 
     return <Button onClick={() => setOpen(true)} variant="outline" size="sm"><Plus className="h-4 w-4 mr-1" />Novo Token SOAP</Button>;
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setOpen(false)}>
+  return createPortal(
+    <div className="credential-modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setOpen(false)}>
       <Card role="dialog" aria-modal="true" aria-labelledby="create-soap-title" className="w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between">
@@ -80,6 +81,7 @@ export function CreateTokenSoapDialog({ onCreated, defaultCnpj }: { onCreated?: 
           </form>
         </CardContent>
       </Card>
-    </div>
+    </div>,
+    document.body,
   );
 }

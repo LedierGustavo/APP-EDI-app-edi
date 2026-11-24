@@ -32,6 +32,16 @@ export async function criarCredencial(usuario: string, senha: string): Promise<{
   return res.ok ? {} : { error: res.error };
 }
 
+export async function atualizarCredencial(
+  usuarioAtual: string,
+  usuario: string,
+  senha?: string,
+): Promise<{ error?: string }> {
+  const api = requireDesktop("Editar credencial");
+  const res = await api.atualizarCredencial({ usuarioAtual, usuario, senha });
+  return res.ok ? {} : { error: res.error };
+}
+
 export type CredentialBatchResult = { ok: true } | { ok: false; error: string };
 
 export async function createCredentialBatch(usuario: string, senha: string): Promise<CredentialBatchResult> {

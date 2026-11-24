@@ -214,7 +214,7 @@ export function CotacaoPage() {
   return (
     <div className="cotacao-workspace">
       <Card className="min-w-0">
-        <CardHeader className="p-4 pb-3"><CardTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Cotação de Frete</CardTitle></CardHeader>
+        <CardHeader className="p-4 pb-3"><CardTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Parâmetros do frete</CardTitle></CardHeader>
         <CardContent className="p-4 pt-0">
           <form onSubmit={handleSubmit(onSubmit)} className="cotacao-form space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -293,7 +293,7 @@ export function CotacaoPage() {
               <select id="cot-retorno" value={returnType} onChange={(e) => setReturnType(e.target.value as any)} className="h-9 rounded-md border border-input bg-background text-foreground px-3 text-sm focus:ring-1 focus:ring-ring"><option value="json">json</option><option value="xml">xml</option></select>
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full">{loading ? "Calculando..." : "Calcular Frete"}</Button>
+            <Button type="submit" disabled={loading} className="action-button w-full">{loading ? "Calculando..." : "Calcular Frete"}</Button>
             {!basic && <p className="text-xs text-amber-600 text-center">Selecione uma credencial no topo para habilitar.</p>}
           </form>
         </CardContent>
@@ -301,7 +301,7 @@ export function CotacaoPage() {
 
       <div className="cotacao-preview min-w-0 space-y-4">
         <Card className="min-w-0">
-          <CardHeader className="p-4 pb-3"><CardTitle className="text-sm">Preview Payload</CardTitle></CardHeader>
+          <CardHeader className="p-4 pb-3"><CardTitle className="text-sm">Prévia do payload</CardTitle></CardHeader>
           <CardContent className="space-y-2 p-4 pt-0">
             <JsonViewer data={values} title="JSON Payload" defaultCollapsed={false} />
             <Button variant="outline" size="sm" onClick={() => { if (!basic) return; const payload = values as any; navigator.clipboard.writeText(buildCurlCotacao(basic, payload, returnType)); }}><Copy className="h-4 w-4 mr-1" />Copiar cURL</Button>

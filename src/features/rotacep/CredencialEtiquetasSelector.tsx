@@ -1,133 +1,158 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type MouseEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { fetchCredenciaisEtiquetas } from "@/lib/credenciaisEtiquetas";
-import { fetchClientesBatch } from "@/lib/clienteCache";
-import { lookupCepByCNPJ } from "@/lib/cnpj";
-import { normalizeCNPJ } from "@/lib/cnpj";
+import { fetchClienteNome, fetchClientesBatch } from "@/lib/clienteCache";
+import { lookupCepByCNPJ, normalizeCNPJ } from "@/lib/cnpj";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, RefreshCw, Shield, User, Building2, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { CredentialDrawer } from "@/components/layout/CredentialDrawer";
+import { Search, RefreshCw, Shield, User, Building2, Download, Check } from "lucide-react";
 import { CreateEtiquetaDialog } from "@/features/rotacep/CreateEtiquetaDialog";
 
 type Props = {
   value?: string;
   onSelect: (cnpj: string) => void;
+  detail?: string;
+  selectedDetails?: ReactNode;
 };
 
-export function CredencialEtiquetasSelector({ value, onSelect }: Props) {
+export function CredencialEtiquetasSelector({ value, onSelect, detail, selectedDetails }: Props) {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [fetchingCnpj, setFetchingCnpj] = useState<string | null>(null);
-  const [listOpen, setListOpen] = useState(!value);
   const queryClient = useQueryClient();
   const pageSize = 50;
+  const selected = normalizeCNPJ(value ?? "");
 
-  useEffect(() => { const t = setTimeout(() => { setDebounced(search); setPage(0); }, 300); return () => clearTimeout(t); }, [search]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebounced(search);
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["credenciais_etiquetas_list", debounced, page],
     queryFn: () => fetchCredenciaisEtiquetas({ search: debounced, page, pageSize }),
   });
 
-  const cnpjsPage = useMemo(() => (data?.data ?? []).map((c) => normalizeCNPJ(c.cnpj)).filter((c) => c.length === 14), [data]);
+  const cnpjsPage = useMemo(
+    () => (data?.data ?? []).map((credential) => normalizeCNPJ(credential.cnpj)).filter((cnpj) => cnpj.length === 14),
+    [data],
+  );
   const { data: nomesMap } = useQuery({
     queryKey: ["cliente_cache", cnpjsPage.join(",")],
     queryFn: () => fetchClientesBatch(cnpjsPage),
     enabled: cnpjsPage.length > 0,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: selectedName } = useQuery({
+    queryKey: ["cliente_cache", selected],
+    queryFn: () => fetchClienteNome(selected),
+    enabled: selected.length === 14,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const handleFetchNome = async (e: React.MouseEvent, cnpj: string) => {
-    e.stopPropagation();
+  const handleFetchNome = async (event: MouseEvent, cnpj: string) => {
+    event.stopPropagation();
     setFetchingCnpj(cnpj);
     try {
       await lookupCepByCNPJ(cnpj);
       await queryClient.invalidateQueries({ queryKey: ["cliente_cache"] });
-    } catch {}
-    setFetchingCnpj(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível consultar o nome do cliente.");
+    } finally {
+      setFetchingCnpj(null);
+    }
   };
 
-  const selected = normalizeCNPJ(value ?? "");
   const handleSelect = (cnpj: string) => {
-    setListOpen(false);
     onSelect(cnpj);
+    setDrawerOpen(false);
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col items-stretch gap-2 space-y-0 p-4 pb-3">
-        <CardTitle className="flex items-center gap-2 text-base"><Shield className="h-4 w-4 text-primary" /> Credenciais Etiquetas</CardTitle>
-        <p className="truncate text-sm text-muted-foreground">{selected || (data?.count != null ? `${data.count} credenciais` : "")}</p>
-        <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setListOpen((open) => !open)} aria-expanded={listOpen}>
-          {listOpen ? <><ChevronUp className="mr-1.5 h-4 w-4" />Ocultar lista</> : <><ChevronDown className="mr-1.5 h-4 w-4" />Trocar credencial</>}
+    <CredentialDrawer
+      open={drawerOpen}
+      onOpenChange={setDrawerOpen}
+      category="Acesso Etiquetas"
+      selected={selected || null}
+      client={selectedName}
+      detail={detail}
+      icon={Shield}
+    >
+      <div className="credential-drawer-tools">
+        <div className="relative min-w-0 flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar CNPJ ou Razão Social"
+            placeholder="Buscar CNPJ ou cliente..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => refetch()} title="Atualizar lista" aria-label="Atualizar lista">
+          <RefreshCw className="h-4 w-4" />
         </Button>
-      </CardHeader>
-      <CardContent className="space-y-3 px-4 pb-4 pt-0">
-        {listOpen && <div className="space-y-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input aria-label="Buscar CNPJ ou Razão Social" placeholder="Buscar CNPJ ou Razão Social..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <Button variant="outline" className="w-full" onClick={() => refetch()}><RefreshCw className="mr-1.5 h-4 w-4" />Recarregar</Button>
-            <CreateEtiquetaDialog onCreated={() => refetch()} defaultCnpj={selected} />
-          </div>
-        </div>}
+        <CreateEtiquetaDialog onCreated={() => { void refetch(); }} defaultCnpj={selected} />
+      </div>
 
-        {error && <div className="text-sm text-red-600 p-3 border border-red-200 rounded bg-red-50">Erro: {(error as Error).message}</div>}
-        {isLoading && <div className="text-sm text-muted-foreground">Carregando...</div>}
+      {error && <div role="alert" className="credential-drawer-error">Erro: {(error as Error).message}</div>}
+      {isLoading && <div className="py-3 text-sm text-muted-foreground">Carregando credenciais...</div>}
 
-        {listOpen && <div className="credential-list border rounded-lg overflow-auto scrollbar-thin divide-y">
-          {data?.data.map((c) => {
-            const cnpj = normalizeCNPJ(c.cnpj);
-            const nome = nomesMap?.get(cnpj);
-            return (
-              <div
-                key={c.cnpj}
-                role="button"
-                tabIndex={0}
-                onClick={() => handleSelect(cnpj)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(cnpj); } }}
-                className={`w-full text-left px-3 py-2 hover:bg-accent flex flex-col gap-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === cnpj ? "bg-primary/10" : ""}`}
-              >
-                <span className="flex items-center justify-between w-full">
-                  <span className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-muted-foreground" />{c.cnpj}</span>
-                  <span className="text-xs text-muted-foreground">{c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}</span>
+      <div className="credential-drawer-list scrollbar-thin">
+        {data?.data.map((credential) => {
+          const cnpj = normalizeCNPJ(credential.cnpj);
+          const nome = nomesMap?.get(cnpj);
+          return (
+            <div key={credential.cnpj} className={`credential-list-row ${selected === cnpj ? "is-current" : ""}`}>
+              <button type="button" className="credential-row-select" onClick={() => handleSelect(cnpj)}>
+                <span className="credential-row-top">
+                  <span className="credential-row-user"><User className="h-4 w-4 shrink-0" />{cnpj}</span>
+                  {selected === cnpj && <Check className="h-4 w-4 shrink-0 text-primary" />}
                 </span>
-                <span className="flex items-center gap-1.5 text-xs truncate">
-                  <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  {nome ? (
-                    <span className="text-primary font-medium truncate">{nome}</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={(e) => handleFetchNome(e, cnpj)}
-                      disabled={fetchingCnpj === cnpj}
-                      className="italic text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
-                      title="Buscar nome"
-                    >
-                      {fetchingCnpj === cnpj ? (
-                        <><span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" /> buscando...</>
-                      ) : (
-                        <><Download className="h-3 w-3" /> Buscar nome</>
-                      )}
-                    </button>
-                  )}
+                <span className="credential-row-meta">
+                  <span className="credential-row-client"><Building2 className="h-3.5 w-3.5 shrink-0" />{nome || "Nome do cliente não consultado"}</span>
+                  <span className="credential-row-submeta">
+                    {credential.created_at ? new Date(credential.created_at).toLocaleDateString() : "Data indisponível"}
+                    {credential.codigo_cliente && <span>Código {credential.codigo_cliente}</span>}
+                  </span>
                 </span>
-              </div>
-            );
-          })}
-          {data?.data.length === 0 && !isLoading && <div className="p-4 text-sm text-muted-foreground text-center">Nenhuma credencial de etiqueta encontrada</div>}
-        </div>}
+              </button>
+              {!nome && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={(event) => handleFetchNome(event, cnpj)}
+                  disabled={fetchingCnpj === cnpj}
+                  title="Buscar nome do cliente"
+                  aria-label="Buscar nome do cliente"
+                >
+                  {fetchingCnpj === cnpj
+                    ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    : <Download className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+        {data?.data.length === 0 && !isLoading && <div className="credential-empty">Nenhuma credencial de etiqueta encontrada.</div>}
+      </div>
 
-        {listOpen && <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
-          <span className="text-xs text-muted-foreground">Página {page + 1} • {data?.count ?? "?"} total</span>
-          <Button variant="ghost" size="sm" disabled={(data?.data.length ?? 0) < pageSize} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
-        </div>}
-      </CardContent>
-    </Card>
+      <div className="credential-drawer-pagination">
+        <Button type="button" variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>Anterior</Button>
+        <span>Página {page + 1} <span>·</span> {data?.count ?? "—"} credenciais</span>
+        <Button type="button" variant="ghost" size="sm" disabled={(data?.data.length ?? 0) < pageSize} onClick={() => setPage((current) => current + 1)}>Próxima</Button>
+      </div>
+
+      {selectedDetails}
+    </CredentialDrawer>
   );
 }

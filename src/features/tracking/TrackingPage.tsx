@@ -109,7 +109,7 @@ export function TrackingPage() {
                   {formNf.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formNf.formState.errors.cnpj.message)}</p>}
                 </div>
                 <div><Label htmlFor="trk-nf-nota">Nota Fiscal *</Label><Input id="trk-nf-nota" {...formNf.register("notaFiscal")} />{formNf.formState.errors.notaFiscal && <p className="text-xs text-red-600">{String(formNf.formState.errors.notaFiscal.message)}</p>}</div>
-                <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
+                <Button type="submit" disabled={loading} className="action-button w-full md:w-auto"><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
             </CardContent>
           </Card>
@@ -126,7 +126,7 @@ export function TrackingPage() {
                   {formPedido.formState.errors.cnpj && <p className="text-xs text-red-600">{String(formPedido.formState.errors.cnpj.message)}</p>}
                 </div>
                 <div><Label htmlFor="trk-ped-num">Nº Pedido *</Label><Input id="trk-ped-num" {...formPedido.register("numPedido")} />{formPedido.formState.errors.numPedido && <p className="text-xs text-red-600">{String(formPedido.formState.errors.numPedido.message)}</p>}</div>
-                <Button type="submit" disabled={loading}><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
+                <Button type="submit" disabled={loading} className="action-button w-full md:w-auto"><Search className="h-4 w-4 mr-2" />{loading ? "Buscando..." : "Buscar"}</Button>
               </form>
             </CardContent>
           </Card>

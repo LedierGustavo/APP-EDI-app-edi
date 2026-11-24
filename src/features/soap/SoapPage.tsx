@@ -117,14 +117,12 @@ export function SoapPage() {
   };
 
   return (
-    <div className="service-workspace soap-workspace">
-      <aside className="service-credentials min-w-0">
-        <CredencialSoapSelector value={cnpjSoapWatch} onSelect={(cnpj) => formSoap.setValue("cnpjCliente", cnpj, { shouldValidate: true, shouldDirty: true })} />
-      </aside>
+    <div className="space-y-4">
+      <CredencialSoapSelector value={cnpjSoapWatch} onSelect={(cnpj) => formSoap.setValue("cnpjCliente", cnpj, { shouldValidate: true, shouldDirty: true })} />
       <section className="service-content min-w-0 space-y-4">
       <Card className="min-w-0">
         <CardHeader className="p-4 pb-3">
-          <CardTitle className="flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> Tracking SOAP - Lote Múltiplas Ocorrências</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> Consulta de ocorrências</CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <form onSubmit={formSoap.handleSubmit(onSearchSoap)} className="service-form space-y-3">
@@ -168,7 +166,7 @@ export function SoapPage() {
               </div>
             </details>
             <div className="flex gap-2">
-              <Button type="submit" disabled={loadingSoap} className="w-full sm:w-auto"><Search className="h-4 w-4 mr-2" />{loadingSoap ? "Consultando..." : "Consultar Lote SOAP"}</Button>
+              <Button type="submit" disabled={loadingSoap} className="action-button w-full sm:w-auto"><Search className="h-4 w-4 mr-2" />{loadingSoap ? "Consultando..." : "Consultar Lote SOAP"}</Button>
             </div>
           </form>
         </CardContent>

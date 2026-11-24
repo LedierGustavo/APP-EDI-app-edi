@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { HashRouter, Routes, Route, Navigate, NavLink, Outlet } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/components/layout/ThemeProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -8,61 +8,77 @@ import { CotacaoPage } from "@/features/cotacao/CotacaoPage";
 import { TrackingPage } from "@/features/tracking/TrackingPage";
 import { SoapPage } from "@/features/soap/SoapPage";
 import { RotaCepPage } from "@/features/rotacep/RotaCepPage";
+import { EtiquetaPage } from "@/features/rotacep/EtiquetaPage";
 import { BulkCredentialPage } from "@/features/auth/BulkCredentialPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Moon, Sun, Calculator, Package, Download, RefreshCw, Truck, MapPin, Boxes, KeyRound } from "lucide-react";
+import { Moon, Sun, Calculator, Package, Download, RefreshCw, Truck, MapPin, Boxes, KeyRound, Tags, ChevronRight } from "lucide-react";
 
 const navItems = [
-  { to: "/cotacao", label: "Cotação", icon: Calculator },
-  { to: "/tracking", label: "Tracking v3", icon: Package },
-  { to: "/soap", label: "SOAP", icon: Truck },
-  { to: "/rotacep", label: "RotaCep", icon: MapPin },
-  { to: "/credenciais-lote", label: "Credenciais", icon: KeyRound },
+  { to: "/cotacao", label: "Cotação", title: "Cotação de frete", description: "Simule fretes e confira o payload antes de enviar.", icon: Calculator },
+  { to: "/tracking", label: "Rastreamento", title: "Rastreamento", description: "Acompanhe notas fiscais e pedidos em um só lugar.", icon: Package },
+  { to: "/soap", label: "Tracking SOAP", title: "Tracking SOAP", description: "Consulte ocorrências de transporte por SOAP.", icon: Truck },
+  { to: "/rotacep", label: "RotaCEP", title: "Consulta RotaCEP", description: "Consulte a filial e a rota de entrega pelo CEP.", icon: MapPin },
+  { to: "/etiqueta", label: "Etiquetas", title: "Geração de etiquetas", description: "Gere etiquetas a partir dos dados da nota fiscal.", icon: Tags },
+  { to: "/credenciais-lote", label: "Credenciais em lote", title: "Credenciais", description: "Cadastre acessos EDI em lote com validação.", icon: KeyRound },
 ];
+
+function AppSidebar() {
+  return (
+    <aside className="app-sidebar">
+      <div className="app-brand">
+        <span className="app-brand-mark"><Boxes className="h-5 w-5" /></span>
+        <div className="min-w-0">
+          <h1>APP EDI</h1>
+          <p>Workspace operacional</p>
+        </div>
+      </div>
+      <div className="app-nav-label">Workspace</div>
+      <nav className="app-navigation" aria-label="Navegação principal">
+        {navItems.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) => cn("app-nav-link", isActive && "app-nav-link-active")}
+          >
+            <Icon className="h-[18px] w-[18px]" />
+            <span>{label}</span>
+            {to === "/cotacao" && <span className="app-nav-shortcut">01</span>}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="app-sidebar-footer">
+        <span className="app-footer-mark"><Boxes className="h-4 w-4" /></span>
+        <div>
+          <p>APP EDI</p>
+          <span>Operações integradas</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 function Header() {
   const { theme, setTheme } = useTheme();
+  const { pathname } = useLocation();
+  const activePage = navItems.find((item) => item.to === pathname) ?? navItems[0];
   const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   return (
-    <header className="app-header sticky top-0 z-10 border-b backdrop-blur-xl">
-      <div className="h-1 bg-gradient-to-r from-primary/30 via-primary to-primary/30" aria-hidden="true" />
-      <div className="flex min-h-16 w-full flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-6">
-          <div className="flex shrink-0 items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
-              <Boxes className="h-5 w-5" />
-            </span>
-            <div className="leading-tight">
-              <h1 className="font-bold tracking-tight">APP EDI</h1>
-            </div>
+    <header className="app-header">
+      <div className="app-page-heading">
+        <div className="min-w-0">
+          <div className="app-breadcrumb">
+            <span>APP EDI</span>
+            <ChevronRight className="h-3.5 w-3.5" />
+            <span>{activePage.label}</span>
           </div>
-          <nav className="app-navigation flex min-w-0 gap-1 overflow-x-auto" aria-label="Navegação principal">
-            {navItems.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  )
-                }
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </NavLink>
-            ))}
-          </nav>
+          <h2>{activePage.title}</h2>
+          <p>{activePage.description}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="rounded-xl bg-card/70 shadow-sm" onClick={() => setTheme(document.documentElement.classList.contains("dark") ? "light" : "dark")} title="Alternar tema" aria-label="Alternar tema">
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
-        </div>
+        <Button variant="outline" size="icon" className="app-theme-toggle" onClick={() => setTheme(isDark ? "light" : "dark")} title="Alternar tema" aria-label="Alternar tema">
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
       </div>
     </header>
   );
@@ -107,9 +123,7 @@ function UpdateBanner() {
 function CredentialLayout() {
   return (
     <div className="credential-layout">
-      <aside className="credential-sidebar min-w-0">
-        <CredentialSelector />
-      </aside>
+      <CredentialSelector />
       <section className="workspace-content min-w-0">
         <Outlet />
       </section>
@@ -119,23 +133,27 @@ function CredentialLayout() {
 
 function AppInner() {
   return (
-    <div className="app-shell min-h-screen bg-background">
-      <Header />
-      <UpdateBanner />
-      <main className="app-main mx-auto w-full min-w-0 space-y-6 px-3 py-4 sm:px-5 lg:px-6 lg:py-6">
-        <ErrorBoundary>
-          <Routes>
-            <Route element={<CredentialLayout />}>
-              <Route path="/cotacao" element={<CotacaoPage />} />
-              <Route path="/tracking" element={<TrackingPage />} />
-            </Route>
-            <Route path="/soap" element={<SoapPage />} />
-            <Route path="/rotacep" element={<RotaCepPage />} />
-            <Route path="/credenciais-lote" element={<BulkCredentialPage />} />
-            <Route path="*" element={<Navigate to="/cotacao" replace />} />
-          </Routes>
-        </ErrorBoundary>
-      </main>
+    <div className="app-shell">
+      <AppSidebar />
+      <div className="app-frame">
+        <Header />
+        <UpdateBanner />
+        <main className="app-main">
+          <ErrorBoundary>
+            <Routes>
+              <Route element={<CredentialLayout />}>
+                <Route path="/cotacao" element={<CotacaoPage />} />
+                <Route path="/tracking" element={<TrackingPage />} />
+              </Route>
+              <Route path="/soap" element={<SoapPage />} />
+              <Route path="/rotacep" element={<RotaCepPage />} />
+              <Route path="/etiqueta" element={<EtiquetaPage />} />
+              <Route path="/credenciais-lote" element={<BulkCredentialPage />} />
+              <Route path="*" element={<Navigate to="/cotacao" replace />} />
+            </Routes>
+          </ErrorBoundary>
+        </main>
+      </div>
     </div>
   );
 }

@@ -113,55 +113,54 @@ export function RotaCepPage() {
     setLoading(false);
   };
 
-  return (
-    <div className="service-workspace rotacep-workspace">
-      <aside className="service-credentials min-w-0">
-        <CredencialEtiquetasSelector value={cnpjWatch} onSelect={handleSelectCredencial} />
-      </aside>
-      <section className="service-content min-w-0 space-y-4">
+  const selectedDetails = etiqueta ? (
+    <section className="credential-drawer-details">
+      <div className="credential-drawer-section-title">
+        <div><h3>Credencial selecionada</h3><p>Dados de acesso da conta de etiquetas.</p></div>
+      </div>
+      <div className="credential-detail-item">
+        <Label>CNPJ</Label>
+        <code className="credential-detail-value">{cnpjWatch}</code>
+        {nomeCnpj && <div className="mt-1 flex items-center gap-1 text-xs text-primary"><Building2 className="h-3 w-3" />{nomeCnpj}</div>}
+      </div>
+      <div className="credential-detail-item">
+        <Label>Código do cliente</Label>
+        <code className="credential-detail-value">{etiqueta.codigo_cliente || "—"}</code>
+      </div>
+      <div className="credential-detail-item">
+        <Label htmlFor="rc-senha">Senha</Label>
+        <div className="flex gap-2">
+          <PasswordField
+            id="rc-senha"
+            value={editingSenha ? senhaEdit : (etiqueta.senha || "")}
+            onChange={(event) => setSenhaEdit(event.target.value)}
+            disabled={!editingSenha}
+            className="font-mono"
+            containerClassName="flex-1"
+          />
+          {!editingSenha ? (
+            <Button type="button" variant="outline" onClick={handleEditSenha}>Editar</Button>
+          ) : (
+            <Button type="button" onClick={handleSaveSenha}>Salvar</Button>
+          )}
+        </div>
+      </div>
+    </section>
+  ) : null;
 
-      {etiqueta && (
-        <Card className="min-w-0">
-          <CardHeader className="p-4 pb-3">
-            <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Credencial Selecionada</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 p-4 pt-0">
-            <div className="fields-three grid grid-cols-1 gap-3">
-              <div>
-                <Label className="text-xs">CNPJ</Label>
-                <code className="flex-1 font-mono text-sm bg-muted px-2 py-1.5 rounded border block truncate">{cnpjWatch}</code>
-                {nomeCnpj && <div className="text-xs text-primary mt-1 flex items-center gap-1"><Building2 className="h-3 w-3" />{nomeCnpj}</div>}
-              </div>
-              <div>
-                <Label className="text-xs">Código Cliente</Label>
-                <code className="flex-1 text-sm bg-muted px-2 py-1.5 rounded border block truncate">{etiqueta.codigo_cliente || "—"}</code>
-              </div>
-              <div>
-                <Label htmlFor="rc-senha" className="text-xs">Senha</Label>
-                <div className="flex gap-2">
-                  <PasswordField
-                    id="rc-senha"
-                    value={editingSenha ? senhaEdit : (etiqueta.senha || "")}
-                    onChange={(e) => setSenhaEdit(e.target.value)}
-                    disabled={!editingSenha}
-                    className="font-mono"
-                    containerClassName="flex-1"
-                  />
-                  {!editingSenha ? (
-                    <Button type="button" variant="outline" onClick={handleEditSenha}>Editar</Button>
-                  ) : (
-                    <Button type="button" onClick={handleSaveSenha}>Salvar</Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+  return (
+    <div className="space-y-4">
+      <CredencialEtiquetasSelector
+        value={cnpjWatch}
+        onSelect={handleSelectCredencial}
+        detail={etiqueta?.codigo_cliente ? `Código ${etiqueta.codigo_cliente}` : undefined}
+        selectedDetails={selectedDetails}
+      />
+      <section className="service-content min-w-0 space-y-4">
 
       <Card className="min-w-0">
         <CardHeader className="p-4 pb-3">
-          <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Consulta Rota por CEP</CardTitle>
+          <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Dados da consulta</CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <form onSubmit={form.handleSubmit(onConsulta)} className="service-form space-y-3">
@@ -177,17 +176,18 @@ export function RotaCepPage() {
                 <Input
                   id="rc-cep"
                   {...form.register("cep")}
-                  maxLength={9}
+                  inputMode="numeric"
+                  maxLength={8}
+                  placeholder="09195430"
                   onChange={(e) => {
                     const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
-                    const masked = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
-                    form.setValue("cep", masked, { shouldValidate: true, shouldDirty: true });
+                    form.setValue("cep", digits, { shouldValidate: true, shouldDirty: true });
                     syncParam("cep", digits);
                   }}
                 />
                 {form.formState.errors.cep && <p className="text-xs text-red-600">{String(form.formState.errors.cep.message)}</p>}
               </div>
-              <Button type="submit" disabled={loading || !etiqueta}>
+              <Button type="submit" disabled={loading || !etiqueta} className="action-button w-full md:w-auto">
                 <Search className="h-4 w-4 mr-2" />
                 {loading ? "Consultando..." : "Consultar Rota"}
               </Button>
@@ -221,9 +221,11 @@ export function RotaCepPage() {
                     <div className="space-y-4">
                       <div className="flex flex-wrap gap-2 items-center">
                         <Badge className={statusVariant(parsed.mensagem)}>
-                          {parsed.mensagem}
+                          {parsed.mensagem || "OK"}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">CEP: {form.getValues("cep")}</span>
+                        <span className="text-xs text-muted-foreground">
+                          CEP: {parsed.cep || String(form.getValues("cep") || "").replace(/^(\d{5})(\d{3})$/, "$1-$2")}
+                        </span>
                       </div>
                       <div className="fields-two grid grid-cols-1 gap-3">
                         <div className="border rounded-xl overflow-hidden shadow-sm bg-card">
@@ -246,7 +248,7 @@ export function RotaCepPage() {
                           </div>
                           <div className="p-4">
                             <div className="text-lg font-bold text-primary">
-                              {parsed.rota ?? "—"}
+                              {parsed.rota || "—"}
                             </div>
                             <div className="result-fields mt-3 grid grid-cols-1 gap-2">
                               <Field label="Código Rota" value={parsed.rota} />

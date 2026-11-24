@@ -12,7 +12,7 @@ export function Tabs({ defaultValue, value, onValueChange, children, className }
 }
 
 export function TabsList({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div role="tablist" className={cn("inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground", className)} {...props} />;
+  return <div role="tablist" className={cn("inline-flex min-h-10 max-w-full flex-wrap items-center justify-center gap-1 rounded-xl bg-muted/80 p-1 text-muted-foreground", className)} {...props} />;
 }
 
 function useTabs() {
@@ -50,7 +50,7 @@ export function TabsTrigger({ value, children, className }: { value: string; chi
       tabIndex={active ? 0 : -1}
       onClick={() => ctx.setValue(value)}
       onKeyDown={onKeyDown}
-      className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active ? "bg-background text-foreground shadow" : "", className)}
+      className={cn("inline-flex min-h-8 items-center justify-center rounded-lg px-3 py-1 text-center text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50 hover:text-foreground", className)}
     >
       {children}
     </button>

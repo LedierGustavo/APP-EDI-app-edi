@@ -2,7 +2,7 @@ import * as React from "react";
 type Theme = "light" | "dark" | "system";
 const ThemeContext = React.createContext<{ theme: Theme; setTheme: (t: Theme) => void } | null>(null);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = React.useState<Theme>(() => (localStorage.getItem("app-edi-theme") as Theme) || "system");
+  const [theme, setThemeState] = React.useState<Theme>(() => (localStorage.getItem("app-edi-theme") as Theme) || "dark");
   const setTheme = (t: Theme) => { localStorage.setItem("app-edi-theme", t); setThemeState(t); apply(t); };
   const apply = (t: Theme) => {
     const root = document.documentElement;

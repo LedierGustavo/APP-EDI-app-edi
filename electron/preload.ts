@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("api", {
   listarCredenciais: (args: unknown) => ipcRenderer.invoke("listar-credenciais", args),
   obterCredencial: (usuario: string) => ipcRenderer.invoke("obter-credencial", usuario),
   criarCredencial: (args: unknown) => ipcRenderer.invoke("criar-credencial", args),
+  atualizarCredencial: (args: unknown) => ipcRenderer.invoke("atualizar-credencial", args),
 
   listarEtiquetas: (args: unknown) => ipcRenderer.invoke("listar-etiquetas", args),
   obterEtiqueta: (args: { cnpj: string }) => ipcRenderer.invoke("obter-etiqueta", args),
@@ -34,6 +35,7 @@ contextBridge.exposeInMainWorld("api", {
   callTracking: (args: unknown) => ipcRenderer.invoke("call-tracking", args),
   callTrackingSoap: (args: unknown) => ipcRenderer.invoke("call-tracking-soap", args),
   callRotaCep: (args: { cep: string; cnpj: string }) => ipcRenderer.invoke("call-rota-cep", args),
+  callEtiqueta: (args: unknown) => ipcRenderer.invoke("call-etiqueta", args),
   lookupCnpj: (cnpj: string) => ipcRenderer.invoke("lookup-cnpj", cnpj),
 
   // Auto-update
@@ -49,6 +51,7 @@ declare global {
       listarCredenciais: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
       obterCredencial: (usuario: string) => Promise<IpcOk<{ usuario: string; senha: string }> | IpcErr>;
       criarCredencial: (args: { usuario: string; senha: string }) => Promise<IpcOk<unknown> | IpcErr>;
+      atualizarCredencial: (args: { usuarioAtual: string; usuario: string; senha?: string }) => Promise<IpcOk<unknown> | IpcErr>;
 
       listarEtiquetas: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
       obterEtiqueta: (args: { cnpj: string }) => Promise<IpcOk<{ cnpj: string; codigo_cliente: string | null; senha: string }> | IpcErr>;
@@ -67,6 +70,7 @@ declare global {
       callTracking: (args: unknown) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
       callTrackingSoap: (args: unknown) => Promise<{ status: number; ok: boolean; data: unknown; raw: string; parsed?: unknown }>;
       callRotaCep: (args: { cep: string; cnpj: string }) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
+      callEtiqueta: (args: unknown) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
       lookupCnpj: (cnpj: string) => Promise<
         | { ok: true; data: { cep: string | null; nome: string | null; source: string } }
         | { ok: false; error_type: "not_found" | "rate_limited" | "timeout" | "invalid" }

@@ -12,6 +12,7 @@ export interface ElectronApi {
   listarCredenciais: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
   obterCredencial: (usuario: string) => Promise<IpcOk<{ usuario: string; senha: string }> | IpcErr>;
   criarCredencial: (args: { usuario: string; senha: string }) => Promise<IpcOk<unknown> | IpcErr>;
+  atualizarCredencial: (args: { usuarioAtual: string; usuario: string; senha?: string }) => Promise<IpcOk<unknown> | IpcErr>;
 
   listarEtiquetas: (args: { search?: string; page: number; pageSize: number }) => Promise<IpcOk<unknown[]> | IpcErr>;
   obterEtiqueta: (args: { cnpj: string }) => Promise<IpcOk<{ cnpj: string; codigo_cliente: string | null; senha: string }> | IpcErr>;
@@ -30,6 +31,7 @@ export interface ElectronApi {
   callTracking: (args: unknown) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
   callTrackingSoap: (args: unknown) => Promise<{ status: number; ok: boolean; data: unknown; raw: string; parsed?: unknown }>;
   callRotaCep: (args: { cep: string; cnpj: string }) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
+  callEtiqueta: (args: { cnpj: string; danfe: string; quantidade_volumes: number; cep_destino: string; tipo_frete: "CIF" | "FOB" | "CONS" }) => Promise<{ status: number; ok: boolean; data: unknown; raw?: string }>;
   lookupCnpj: (cnpj: string) => Promise<
     | { ok: true; data: { cep: string | null; nome: string | null; source: string } }
     | { ok: false; error_type: "not_found" | "rate_limited" | "timeout" | "invalid" }

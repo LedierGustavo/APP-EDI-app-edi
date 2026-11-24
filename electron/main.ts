@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, net, shell, type IpcMainInvokeEvent } from "electron";
+import https from "https";
 import path from "path";
 import { autoUpdater } from "electron-updater";
 import { SecurityVault } from "./security";
@@ -22,6 +23,40 @@ function escapeXml(v: unknown): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+}
+
+function getWithJsonBody(url: string, body: unknown, headers: Record<string, string>): Promise<{ status: number; ok: boolean; text: string }> {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const payload = JSON.stringify(body);
+    const request = https.request(
+      {
+        protocol: parsedUrl.protocol,
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || undefined,
+        path: `${parsedUrl.pathname}${parsedUrl.search}`,
+        method: "GET",
+        headers: {
+          ...headers,
+          "Content-Length": Buffer.byteLength(payload),
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        response.on("end", () => {
+          const status = response.statusCode ?? 0;
+          resolve({
+            status,
+            ok: status >= 200 && status < 300,
+            text: Buffer.concat(chunks).toString("utf8"),
+          });
+        });
+      },
+    );
+    request.on("error", reject);
+    request.end(payload);
+  });
 }
 
 // Sanitiza termo de busca usado em filtros PostgREST OR/ilike.
@@ -104,8 +139,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 1100,
-    minHeight: 700,
+    minWidth: 760,
+    minHeight: 600,
     title: "APP EDI",
     backgroundColor: "#ffffff",
     autoHideMenuBar: true,
@@ -203,6 +238,38 @@ function registerCredenciaisLegado() {
         .insert({ usuario: u, senha: senhaEnc });
       if (error) return { ok: false, error: error.message, errorCode: error.code };
       return { ok: true, data: { usuario: u } };
+    } catch (e) {
+      return err(e);
+    }
+  });
+
+  handle("atualizar-credencial", async (_e, args): Promise<IpcOk<unknown> | IpcErr> => {
+    const guard = vaultGuard();
+    if (guard) return guard;
+    try {
+      const { usuarioAtual = "", usuario = "", senha = "" } = (args ?? {}) as Record<string, string>;
+      const original = String(usuarioAtual).trim();
+      const updatedUser = String(usuario).trim();
+      const newPassword = String(senha);
+      if (!original) return { ok: false, error: "Credencial original obrigatória" };
+      if (!/^\d{14}_[A-Z0-9]+$/.test(updatedUser)) {
+        return { ok: false, error: "Usuário deve ser CNPJ_SUFIXO (ex: 60701190000104_PRD)" };
+      }
+      if (newPassword && newPassword.length < 6) {
+        return { ok: false, error: "Senha mínimo 6 caracteres" };
+      }
+
+      const update: Record<string, string> = { usuario: updatedUser };
+      if (newPassword) update.senha = encryptFernet(newPassword, SecurityVault.fernetSecret);
+      const { data, error } = await SecurityVault.supabase!
+        .from("credenciais")
+        .update(update)
+        .eq("usuario", original)
+        .select("usuario")
+        .maybeSingle();
+      if (error) return { ok: false, error: error.message, errorCode: error.code };
+      if (!data) return { ok: false, error: "Credencial não encontrada", errorCode: "NOT_FOUND" };
+      return { ok: true, data: { usuario: updatedUser } };
     } catch (e) {
       return err(e);
     }
@@ -692,6 +759,105 @@ function registerIntegracoes() {
       return { status: res.status, ok: res.ok, data: parsed, raw: text };
     } catch (e) {
       return { status: 0, ok: false, data: { message: e instanceof Error ? e.message : String(e) } };
+    }
+  });
+
+  handle("call-etiqueta", async (_e, args) => {
+    const guard = vaultGuard();
+    if (guard) return { status: 0, ok: false, data: { message: guard.error }, raw: "" };
+    try {
+      const p = (args ?? {}) as {
+        cnpj?: unknown;
+        danfe?: unknown;
+        quantidade_volumes?: unknown;
+        cep_destino?: unknown;
+        tipo_frete?: unknown;
+      };
+      const cnpj = digitsOnly(p.cnpj);
+      const danfe = digitsOnly(p.danfe);
+      const cepDestino = digitsOnly(p.cep_destino);
+      const quantidadeVolumes = Number(p.quantidade_volumes);
+      const tipoFrete = String(p.tipo_frete ?? "").trim().toUpperCase();
+
+      if (cnpj.length !== 14) throw new Error("CNPJ inválido.");
+      if (danfe.length !== 44) throw new Error("A DANFE deve conter exatamente 44 dígitos.");
+      if (!Number.isInteger(quantidadeVolumes) || quantidadeVolumes < 1 || quantidadeVolumes > 999) {
+        throw new Error("A quantidade de volumes deve estar entre 1 e 999.");
+      }
+      if (cepDestino.length !== 8) throw new Error("O CEP de destino deve conter exatamente 8 dígitos.");
+      if (!["CIF", "FOB", "CONS"].includes(tipoFrete)) {
+        throw new Error("Tipo de frete inválido.");
+      }
+
+      const { data, error } = await SecurityVault.supabase!
+        .from("credenciais_etiquetas")
+        .select("cnpj,codigo_cliente,senha")
+        .eq("cnpj", cnpj)
+        .maybeSingle();
+      if (error || !data) {
+        return {
+          status: 0,
+          ok: false,
+          data: { message: error?.message || "Credencial de etiqueta não encontrada." },
+          raw: "",
+        };
+      }
+      const row = data as { cnpj: string; codigo_cliente: string | null; senha: string };
+      const codigoCliente = String(row.codigo_cliente ?? "").trim();
+      if (!codigoCliente) {
+        return {
+          status: 0,
+          ok: false,
+          data: { message: "Código do cliente não cadastrado para esta credencial." },
+          raw: "",
+        };
+      }
+      const codigoClienteNumero = Number(codigoCliente);
+      if (!Number.isInteger(codigoClienteNumero) || codigoClienteNumero <= 0) {
+        return {
+          status: 0,
+          ok: false,
+          data: { message: "Código do cliente deve ser um número inteiro válido." },
+          raw: "",
+        };
+      }
+      const senha = resolvePassword(getRaw(row.senha), SecurityVault.fernetSecret);
+      if (senha === null) {
+        return {
+          status: 0,
+          ok: false,
+          data: { message: "Falha ao descriptografar a credencial de etiqueta." },
+          raw: "",
+        };
+      }
+      const basic = Buffer.from(`${row.cnpj}:${senha}`).toString("base64");
+      const payload = {
+        codigo_cliente: codigoClienteNumero,
+        danfe,
+        quantidade_volumes: quantidadeVolumes,
+        cep_destino: cepDestino,
+        tipo_frete: tipoFrete,
+      };
+      const res = await getWithJsonBody(
+        "https://api.braspress.com/etiqueta",
+        payload,
+        { "Content-Type": "application/json", Authorization: `Basic ${basic}` },
+      );
+      const text = res.text;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = text;
+      }
+      return { status: res.status, ok: res.ok, data: parsed, raw: text };
+    } catch (e) {
+      return {
+        status: 0,
+        ok: false,
+        data: { message: e instanceof Error ? e.message : String(e) },
+        raw: "",
+      };
     }
   });
 }
